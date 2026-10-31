@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EAA Audit — EAA / WCAG 2.1 AA audits for European online shops</title>
-<meta name="description" content="Fast, affordable accessibility audits for e-commerce under the European Accessibility Act. Free snapshot, full audit with fix plan, monthly monitoring.">
+<title>EAA Audit — automated WCAG 2.1 accessibility scans for European online shops</title>
+<meta name="description" content="Automated WCAG 2.1 A and AA accessibility scans for online shops under the European Accessibility Act. Free 4-page snapshot, automated audit of up to 10 pages. What is not tested is stated plainly.">
 <style>
   :root{--bg:#ffffff;--fg:#111827;--muted:#4b5563;--accent:#1d4ed8;--accent-fg:#ffffff;--line:#e5e7eb;--soft:#f3f4f6}
   *{box-sizing:border-box}
@@ -13,18 +13,18 @@
   .skip{position:absolute;left:-999px;top:8px;background:var(--accent);color:var(--accent-fg);padding:8px 12px;border-radius:6px}
   .skip:focus{left:8px}
   header,main,footer{max-width:960px;margin:0 auto;padding:0 20px}
-  header{display:flex;justify-content:space-between;align-items:center;padding-top:20px;padding-bottom:20px}
+  header{display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:space-between;align-items:center;padding-top:20px;padding-bottom:20px}
   .brand{font-weight:700;font-size:18px;text-decoration:none;color:var(--fg)}
-  nav ul{list-style:none;margin:0;padding:0;display:flex;gap:18px}
+  nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px 18px}
   nav a{text-decoration:none;color:var(--muted);font-weight:500}
   .hero{padding:48px 0 32px}
   h1{font-size:clamp(28px,5vw,44px);line-height:1.15;margin:0 0 16px}
   .lead{font-size:19px;color:var(--muted);max-width:640px;margin:0 0 24px}
-  .btn{display:inline-block;background:var(--accent);color:var(--accent-fg);text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:600}
+  .btn{display:inline-block;margin-bottom:8px;background:var(--accent);color:var(--accent-fg);text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:600}
   .btn.secondary{background:var(--soft);color:var(--fg);margin-left:8px}
   section{padding:32px 0;border-top:1px solid var(--line)}
   h2{font-size:26px;margin:0 0 16px}
-  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))}
   .card{border:1px solid var(--line);border-radius:14px;padding:20px;background:#fff}
   .card h3{margin:0 0 8px;font-size:18px}
   .price{font-size:30px;font-weight:700;margin:6px 0}
@@ -42,7 +42,9 @@
   <nav aria-label="Main">
     <ul>
       <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#scope">What we check</a></li>
       <li><a href="#how">How it works</a></li>
+      <li><a href="#about">About</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
   </nav>
@@ -51,10 +53,10 @@
 <main id="main">
   <section class="hero" aria-labelledby="hero-title" style="border-top:0">
     <h1 id="hero-title">Is your online shop ready for the European Accessibility Act?</h1>
-    <p class="lead">Since 28 June 2025 the EAA requires e-commerce sites and online services in the EU to meet WCAG 2.1 AA. We check your shop, show exactly what fails, and give your developers a clear fix plan. No jargon, no lock-in.</p>
+    <p class="lead">The EAA has applied to e-commerce sites and online services in the EU since 28 June 2025. We run an automated scan of your shop against WCAG 2.1 A and AA, show what fails and how to fix it, and state plainly what was not tested. A scan cannot prove that your shop conforms, and we do not claim that it does.</p>
     <p>
       <a class="btn" href="#contact">Get a free snapshot</a>
-      <a class="btn secondary" href="#pricing">See pricing</a>
+      <a class="btn secondary" href="samples/EAA_snapshot_example-store.pdf">See a sample report (PDF)</a>
     </p>
   </section>
 
@@ -62,8 +64,9 @@
     <h2 id="facts-title">What the law means for your shop</h2>
     <div class="grid">
       <div class="fact"><strong>Who is covered.</strong> Online shops and digital services with 10 or more employees or more than 2 million EUR turnover. Smaller businesses are encouraged to comply and often asked by B2B customers.</div>
-      <div class="fact"><strong>What is required.</strong> WCAG 2.1 level AA: readable contrast, keyboard access, labelled forms, text alternatives for images, an accessible checkout, and an accessibility statement.</div>
-      <div class="fact"><strong>What happens otherwise.</strong> Each member state sets its own penalties, from 5,000 EUR up to several hundred thousand EUR, plus complaints from customers and consumer organisations.</div>
+      <div class="fact"><strong>What is required.</strong> The Act sets accessibility requirements but does not name WCAG. In practice they are measured against the European standard EN 301 549, which builds on WCAG 2.1 level AA: readable contrast, keyboard access, labelled forms, text alternatives for images. An accessible checkout and an accessibility statement are expected too.</div>
+      <div class="fact"><strong>What happens otherwise.</strong> Each member state sets its own penalties and enforcement rules. Customers and consumer organisations can also complain.</div>
+      <div class="fact"><strong>What is changing.</strong> EN 301 549 V4.1.1, published in September 2026, adopts WCAG 2.2 level AA. Its citation in the EU Official Journal is expected around the end of November 2026. Our tool does not check WCAG 2.2 yet.</div>
     </div>
   </section>
 
@@ -74,56 +77,66 @@
         <h3>Free snapshot</h3>
         <p class="price">0 EUR</p>
         <ul>
-          <li>Automated WCAG 2.1 AA scan of 4 key pages</li>
-          <li>Top issues with impact ratings, PDF</li>
-          <li>Delivered within 1 business day</li>
+          <li>Automated WCAG 2.1 A and AA scan of 4 pages: home, category, product, cart</li>
+          <li>PDF report with the main problems and their impact ratings</li>
+          <li>Our target: 1 business day</li>
         </ul>
       </div>
       <div class="card">
-        <h3>Full audit</h3>
+        <h3>Automated audit</h3>
         <p class="price">390 EUR</p>
         <ul>
-          <li>Up to 12 key pages: home, category, product, cart, account, search, contact</li>
-          <li>Every issue explained in plain language: who is affected and how to fix it</li>
-          <li>Affected elements grouped by component, so one template fix solves many pages</li>
-          <li>Keyboard navigation test: skip link, visible focus, keyboard traps</li>
-          <li>Prioritised fix plan and a draft accessibility statement</li>
-          <li>One free re-check after your fixes</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>Monitoring</h3>
-        <p class="price">49 EUR / month</p>
-        <ul>
-          <li>Weekly automated scans of your key pages</li>
-          <li>Alert when a release introduces new issues</li>
-          <li>Monthly summary for your records</li>
+          <li>Up to 10 pages agreed with you: home, category, product, cart, search, contact, returns, account sign-in</li>
+          <li>Report as PDF and Word, in English</li>
+          <li>The five most important problems in plain language: who is affected and how to fix it</li>
+          <li>Every problem found, with its level, impact, pages and up to three example elements</li>
+          <li>An element repeated across pages is counted once, so you can see where one template fix helps</li>
+          <li>A short “Fix first” list</li>
+          <li>A result for each of the 50 WCAG 2.1 A and AA criteria, and the checks that still need a person</li>
+          <li>Scripted keyboard pass on one page, the product page: Tab order, visible focus, suspected traps, skip links</li>
+          <li>Delivered within 3 business days of your confirmed order</li>
         </ul>
       </div>
     </div>
-    <p>Prices exclude VAT where applicable. Payment by bank transfer (SEPA) or card. Invoices in EUR.</p>
+    <p>Prices exclude VAT where applicable. Payment by bank transfer against an invoice in EUR. See the <a href="terms.html">terms of service</a>.</p>
+  </section>
+
+  <section id="scope" aria-labelledby="scope-title">
+    <h2 id="scope-title">What is checked, and what is not</h2>
+    <div class="grid">
+      <div class="fact"><strong>Done automatically.</strong> axe-core 4.14.0 rules for WCAG 2.1 A and AA in the Chromium browser, in desktop view at 1366 by 900 pixels, plus the scripted keyboard pass. We make one pass with a 2 second pause between pages, follow your robots.txt, and only ever reject cookies. A page disallowed by robots.txt is skipped and named in the report. In our sample report the rules touched 22 of the 50 criteria (44 %), most of them only in part.</div>
+      <div class="fact"><strong>Done by us.</strong> We agree the page list with you, read the results, and write the “Fix first” list and the notes on your shop. Elements the rules could not decide are listed for review, not counted as failures.</div>
+      <div class="fact"><strong>Not tested.</strong> Screen reader use. Keyboard use by a person. The filled bag, checkout and payment: we never place orders or submit forms, so the cart page is checked empty. Mobile view. Contrast in hover, focus and error states. WCAG 2.2. The report lists these as manual checks that still have to be done.</div>
+      <div class="fact"><strong>Not offered today.</strong> A draft accessibility statement, a re-check after your fixes, and ongoing monitoring. A report from us does not show that your shop conforms to WCAG or to the Act.</div>
+    </div>
   </section>
 
   <section id="how" aria-labelledby="how-title">
     <h2 id="how-title">How it works</h2>
     <ol class="steps">
       <li>Send us your shop address. You receive a free snapshot with the most serious issues.</li>
-      <li>Order the full audit. We test every key page type and walk through the shop with the keyboard only.</li>
-      <li>Within 3 business days you get the report, the fix plan and a draft accessibility statement.</li>
-      <li>Your developers fix the issues. We re-check for free and confirm the result.</li>
+      <li>Order the automated audit. We confirm the page list, the price and the delivery date by email.</li>
+      <li>Within 3 business days you get the report, with the “Fix first” list and the manual checks still to do.</li>
+      <li>Your developers fix the issues and arrange the manual checks.</li>
     </ol>
+  </section>
+
+  <section id="about" aria-labelledby="about-title">
+    <h2 id="about-title">Who we are</h2>
+    <p>EAA Audit is a small independent service run from Astana, Kazakhstan. We hold no accessibility certification and have no client reviews yet. We use an AI service to help prepare reports; the <a href="privacy.html">privacy policy</a> names it.</p>
+    <p>You can judge the work from our <a href="samples/EAA_snapshot_example-store.pdf">sample report (PDF, 11 pages)</a>: a real scan of 7 pages. The shop did not commission it and has not been contacted, and its identity has been removed. The PDF is not tagged for screen readers; write to us for a version you can read.</p>
   </section>
 
   <section id="contact" aria-labelledby="contact-title">
     <h2 id="contact-title">Get your free snapshot</h2>
-    <p>Email us your shop address and we reply within one business day with the snapshot PDF.</p>
+    <p>Email us your shop address. We aim to reply within one business day with the snapshot PDF.</p>
     <p><a class="btn" href="mailto:hello@eaa-audit.net?subject=Free%20accessibility%20snapshot">hello@eaa-audit.net</a></p>
   </section>
 </main>
 
 <footer>
-  <p>EAA Audit. Automated and scripted checks against WCAG 2.1 AA. Automated testing finds a large share of issues but not all; reports are technical assessments, not legal advice.</p>
-  <p><a href="privacy.html">Privacy policy</a></p>
+  <p>EAA Audit. Automated and scripted checks against WCAG 2.1 A and AA. Automated testing finds only part of the problems; reports are technical assessments, not proof of conformance and not legal advice.</p>
+  <p><a href="terms.html">Terms of service</a> · <a href="privacy.html">Privacy policy</a> · <a href="accessibility.html">Accessibility statement</a></p>
   <p><a href="#top">Back to top</a></p>
 </footer>
 </body>
