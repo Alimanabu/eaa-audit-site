@@ -21,7 +21,8 @@
   h1{font-size:clamp(28px,5vw,44px);line-height:1.15;margin:0 0 16px}
   .lead{font-size:19px;color:var(--muted);max-width:640px;margin:0 0 24px}
   .btn{display:inline-block;margin-bottom:8px;background:var(--accent);color:var(--accent-fg);text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:600}
-  .btn.secondary{background:var(--soft);color:var(--fg);margin-left:8px}
+  .btn.secondary{background:var(--soft);color:var(--fg)}
+  .actions{display:flex;flex-wrap:wrap;column-gap:12px}
   section{padding:32px 0;border-top:1px solid var(--line)}
   h2{font-size:26px;margin:0 0 16px}
   .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))}
@@ -54,7 +55,7 @@
   <section class="hero" aria-labelledby="hero-title" style="border-top:0">
     <h1 id="hero-title">Is your online shop ready for the European Accessibility Act?</h1>
     <p class="lead">The EAA has applied to e-commerce sites and online services in the EU since 28 June 2025. We run an automated scan of your shop against WCAG 2.1 A and AA, show what fails and how to fix it, and state plainly what was not tested. A scan cannot prove that your shop conforms, and we do not claim that it does.</p>
-    <p>
+    <p class="actions">
       <a class="btn" href="#contact">Get a free snapshot</a>
       <a class="btn secondary" href="samples/EAA_snapshot_example-store.pdf">See a sample report (PDF)</a>
     </p>
@@ -115,7 +116,7 @@
     <h2 id="how-title">How it works</h2>
     <ol class="steps">
       <li>Send us your shop address. You receive a free snapshot with the most serious issues.</li>
-      <li>Order the automated audit. We confirm the page list, the price and the delivery date by email.</li>
+      <li>Order the automated audit. We confirm the page list and send a quote with the price and the delivery date by email.</li>
       <li>Within 3 business days you get the report, with the “Fix first” list and the manual checks still to do.</li>
       <li>Your developers fix the issues and arrange the manual checks.</li>
     </ol>
