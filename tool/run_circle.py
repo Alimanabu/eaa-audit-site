@@ -70,13 +70,22 @@ def main():
     ap.add_argument("--summary", required=True)
     ap.add_argument("--out", default=str(HERE / "out" / "circle1"))
     ap.add_argument("--timeout", type=int, default=420)
+    ap.add_argument("--only-n", help="comma-separated numbers of the targets to run again; their rows are replaced")
+    ap.add_argument("--only-studios", action="store_true",
+                    help="run only the web studios and replace their rows in the existing summary")
     args = ap.parse_args()
     out, pdf_dir = Path(args.out), Path(args.pdf_dir)
     out.mkdir(parents=True, exist_ok=True)
     pdf_dir.mkdir(parents=True, exist_ok=True)
     targets = read_targets(args.targets)
+    kept = []
+    if args.only_studios or args.only_n:
+        wanted = {int(x) for x in args.only_n.split(",")} if args.only_n else None
+        targets = [t for t in targets if (t["n"] in wanted if wanted else t["type"] == STUDIO)]
+        done = {t["n"] for t in targets}
+        kept = [list(r) for r in load_workbook(args.summary).active.iter_rows(min_row=2, values_only=True) if r[0] not in done]
     print(f"{len(targets)} targets", flush=True)
-    rows = []
+    rows = kept
     for i, t in enumerate(targets, 1):
         print(f"[{i}/{len(targets)}] {t['name']} {t['site']}", flush=True)
         slug = re.sub(r"^www\.", "", re.sub(r"^https?://", "", t["site"]).split("/")[0].lower())
@@ -84,8 +93,8 @@ def main():
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "summary.json").unlink(missing_ok=True)
         log = open(folder / "run.log", "w", encoding="utf-8")
-        proc = subprocess.Popen([sys.executable, str(HERE / "quick.py"), t["site"], "--out", str(out), "--name", t["name"]],
-                                stdout=log, stderr=subprocess.STDOUT)
+        cmd = [sys.executable, str(HERE / "quick.py"), t["site"], "--out", str(out), "--name", t["name"]]
+        proc = subprocess.Popen(cmd + (["--studio"] if t["type"] == STUDIO else []), stdout=log, stderr=subprocess.STDOUT)
         try:
             proc.wait(timeout=args.timeout)
         except subprocess.TimeoutExpired:
@@ -105,13 +114,16 @@ def main():
             rows.append(base + ["\u043d\u0435\u0442", f"{kind}: {reason}", s.get("pages", 0), "", "", "", "", "", "", ""])
         else:
             lv = s["levels"]
-            probs = [f"{f['what']} {f['who']}" for f in s["findings"]] + [""] * 3
+            probs = [f"{f['what']} {f['who']}" for f in s["findings"]]
+            if not s["levels"]["total"]["instances"]:
+                probs = ["The automated rules found no failures on the pages checked."]
+            probs += ["No further problem type was found by the automated rules on the pages checked."] * 3
             target_pdf = pdf_dir / f"{safe_name(t['name'])}.pdf"
             shutil.copyfile(s["pdf"], target_pdf)
             rows.append(base + ["\u0434\u0430", "", s["pages"], lv["A"]["instances"], lv["AA"]["instances"],
                                 lv["total"]["instances"]] + probs[:3] + [str(target_pdf)])
         print(f"    -> {rows[-1][5]} {rows[-1][6]} pages {rows[-1][7]} A {rows[-1][8]} AA {rows[-1][9]}", flush=True)
-        write_summary(rows, args.summary)
+        write_summary(sorted(rows, key=lambda r: r[0]) if (args.only_studios or args.only_n) else rows, args.summary)
         time.sleep(3)
     ok = sum(r[5] == "\u0434\u0430" for r in rows)
     print(f"done: {ok} of {len(rows)} checked", flush=True)

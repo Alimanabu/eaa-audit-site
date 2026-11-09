@@ -103,8 +103,10 @@ def check_folder(folder):
         want = f"Found on {len(rule['elements'])} element{'s' if len(rule['elements']) != 1 else ''}, on {len(rule['pages'])} of {expected['pages']} pages"
         if want not in flat:
             bad.append(f"{f['rule']}: PDF text lacks '{want}'")
-        if json.dumps([f["selector"]]) not in rule["selectors"]:
+        if f["selector"] and json.dumps([f["selector"]]) not in rule["selectors"]:
             bad.append(f"{f['rule']}: picture selector {f['selector']!r} is not an element of this rule in the axe results")
+        if not f["picture"]:
+            continue  # listed without a picture on purpose: its element cannot be shown
         picture = folder / "pictures" / f["picture"]
         img = Image.open(picture).convert("RGB")
         # JPEG blurs the exact colour a little: count pixels within 60 of the frame colour in each channel
@@ -115,7 +117,7 @@ def check_folder(folder):
         if COOKIE_WORDS.search(ocr):
             bad.append(f"{f['picture']}: cookie wording readable: {COOKIE_WORDS.search(ocr).group(0)!r}")
     shown = len(re.findall(r"^\s*\d+\s+\d+\s+image", run("pdfimages", "-list", str(pdf)), re.M))
-    if shown != len(findings):
+    if shown != len([f for f in findings if f["picture"]]):
         bad.append(f"{shown} pictures in the PDF, {len(findings)} problems")
     if len(findings) < 3:  # not a failure: a shop with few visible problems cannot show three honest pictures
         print(f"     note: {len(findings)} problems with a clean picture; skipped: {summary.get('skippedRules')}")

@@ -134,6 +134,10 @@ INFO_HINT = re.compile(r"return|retour|delivery|verzend|bezorg|livraison|shippin
 CART_GUESSES = ("/cart", "/winkelwagen", "/winkelmand", "/panier", "/basket")
 
 
+STUDIO_HINT = re.compile(r"service|work|portfolio|case|about|team|solution|expertise|agence|agency|r.alisation|"
+                         r"projet|savoir|offre|prestation|shopify|ecommerce|e-commerce", re.I)
+
+
 class StoreError(Exception):
     pass
 
@@ -202,7 +206,9 @@ def pick_link(links, root, pattern, footer=None):
 
 
 class Scanner:
-    def __init__(self, root, slug, out):
+    def __init__(self, root, slug, out, studio=False):
+        self.studio = studio
+        self.extras = []
         self.root, self.slug, self.out = root, slug, out
         self.source = AXE_JS.read_text(encoding="utf-8")
         self.rp = robots_for(root + "/")
@@ -263,6 +269,11 @@ class Scanner:
                 raise StoreError(f"{kind}: no answer in 45 s")
             self.last_visit = time.time()
             rec["status"] = resp.status if resp else None
+            if rec["status"] == 429:  # the shop asks us to slow down: one retry after a long pause, nothing more
+                time.sleep(30)
+                resp = page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                self.last_visit = time.time()
+                rec["status"] = resp.status if resp else None
             if rec["status"] and rec["status"] >= 400:
                 raise StoreError(f"{kind}: HTTP {rec['status']}")
             settle(page)
@@ -291,8 +302,35 @@ class Scanner:
         print(f"  [{n}] {kind}: {len(rec['violations'])} rules failed  {url}", flush=True)
         return rec, links
 
+    def run_studio(self, ctx, home_links):
+        """A studio has no products or cart: its own home, up to two inner pages and the contact page."""
+        links = [(u, l) for u, l in local_links(home_links, self.root)
+                 if depth(u) <= 2 and 3 <= len(l["text"]) <= 40 and not re.search(r"privacy|cookie|legal|terms|mentions|cgv|\.(pdf|jpe?g|png)$|/blogs?/|episode|podcast", u, re.I)]
+        links.sort(key=lambda t: (not STUDIO_HINT.search(t[0] + " " + t[1]["text"]), not t[1]["vis"]))
+        contact = pick_link(home_links, self.root, CONTACT_HINT)
+        for url in [u for u, _ in links if u != contact][:4]:
+            if len([p for p in self.pages if p["type"] == "page"]) == 2:
+                break
+            try:
+                self.visit(ctx, "page", url, want_links=False)
+            except StoreError as e:
+                print(f"  skip {url}: {e}", flush=True)
+        if contact:
+            try:
+                self.visit(ctx, "contact", contact, want_links=False)
+            except StoreError as e:
+                print(f"  skip {contact}: {e}", flush=True)
+        if len(self.pages) < MIN_PAGES:
+            raise StoreError(f"only {len(self.pages)} page(s) could be scanned, {MIN_PAGES} needed")
+
     def run(self, ctx):
         home, home_links = self.visit(ctx, "home", self.root + "/")
+        final = urllib.parse.urlparse(home["finalUrl"])
+        if host_key(home["finalUrl"]) != host_key(self.root):  # the shop lives on another address: follow it
+            self.root = f"{final.scheme}://{final.netloc}"
+            self.rp = robots_for(self.root + "/")
+        if self.studio:
+            return self.run_studio(ctx, home_links)
         category_url = None
         product_url = None
         for cand in category_candidates(home_links, self.root):
@@ -431,6 +469,15 @@ def choose_findings(scanner, summary, pictures):
                          "picture": path.name, "where": where, "documented": rule["id"] in PLAIN,
                          "help": rule["help"]})
         findings[-1]["what"], findings[-1]["who"] = finding_texts(findings[-1], len(scanner.pages))
+    # a rule whose element cannot be shown still is a problem of the shop: it is listed without a picture
+    for item in skipped[:MAX_FINDINGS - len(findings)]:
+        rule = next(r for r in ranked if r["id"] == item["rule"])
+        f = {"rule": rule["id"], "impact": rule["impact"], "level": rule["level"], "criteria": rule["criteria"],
+             "elements": len(rule["unique"]), "instances": rule["instances"], "pages": len(set(rule["pages"])),
+             "pageType": None, "pageNumber": None, "selector": None, "picture": None, "where": None,
+             "documented": rule["id"] in PLAIN, "help": rule["help"]}
+        f["what"], f["who"] = finding_texts(f, len(scanner.pages))
+        findings.append(f)
     return findings, skipped
 
 
@@ -448,7 +495,7 @@ def finding_texts(f, total_pages):
 
 
 PAGE_LABEL = {"home": "home page", "category": "category page", "product": "product page", "cart": "cart",
-              "contact": "contact page", "info": "help page"}
+              "contact": "contact page", "info": "help page", "page": "inner page"}
 
 
 def build_pdf(summary, findings, pictures, path):
@@ -496,16 +543,20 @@ def build_pdf(summary, findings, pictures, path):
         story.append(Spacer(1, 4))
         for i, f in enumerate(findings, 1):
             what, who = finding_texts(f, n_pages)
-            img = PILImage_size(pictures / f["picture"])
-            w = 9.2 * cm
-            h = w * img[1] / img[0]
-            if h > 4.6 * cm:
-                h, w = 4.6 * cm, 4.6 * cm * img[0] / img[1]
+            if f["picture"]:
+                img = PILImage_size(pictures / f["picture"])
+                w = 9.2 * cm
+                h = w * img[1] / img[0]
+                if h > 4.6 * cm:
+                    h, w = 4.6 * cm, 4.6 * cm * img[0] / img[1]
+                shot = RLImage(str(pictures / f["picture"]), width=w, height=h)
+            else:
+                shot = Paragraph("No picture: the element is hidden or too small to be framed on screen.", small)
             level = f"WCAG {', '.join(f['criteria'])} · level {f['level']} · {f['impact']} impact"
             text = [Paragraph(f"<b>{i}. What is wrong:</b> {safe(what)}", lab), Spacer(1, 3),
                     Paragraph(f"<b>Who it affects:</b> {safe(who)}", lab), Spacer(1, 3),
                     Paragraph(safe(level), small)]
-            row = Table([[RLImage(str(pictures / f["picture"]), width=w, height=h), text]], colWidths=[9.6 * cm, 8.0 * cm])
+            row = Table([[shot, text]], colWidths=[9.6 * cm, 8.0 * cm])
             row.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                      ("RIGHTPADDING", (0, 0), (0, 0), 8), ("TOPPADDING", (0, 0), (-1, -1), 2),
                                      ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
@@ -546,7 +597,7 @@ def pdf_pages(path):
 
 # --- one shop --------------------------------------------------------------------------------------------------------
 
-def run_one(raw, out_root, display=None):
+def run_one(raw, out_root, display=None, studio=False):
     started = time.time()
     root, slug = normalise(raw)
     out = Path(out_root) / slug
@@ -555,7 +606,7 @@ def run_one(raw, out_root, display=None):
     for old in list(pictures.glob("*")) + [out / "summary.json"]:
         old.unlink(missing_ok=True)
     summary = {"shop": slug, "display": display, "url": root + "/", "error": None}
-    scanner = Scanner(root, slug, out)
+    scanner = Scanner(root, slug, out, studio)
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
@@ -686,6 +737,7 @@ def main():
     ap.add_argument("--column", help="name of the column with the address (default: site, website, url, domain)")
     ap.add_argument("--out", default=str(HERE / "out" / "quick"))
     ap.add_argument("--name", help="shop name for the title of the PDF")
+    ap.add_argument("--studio", action="store_true", help="a web studio: home, inner pages and contact, no product or cart")
     ap.add_argument("--timeout", type=int, default=SHOP_TIMEOUT_S, help="seconds per shop in batch mode")
     args = ap.parse_args()
     if args.list:
@@ -693,7 +745,7 @@ def main():
         return
     if not args.shop:
         ap.error("give a shop address or --list")
-    summary = run_one(args.shop, args.out, args.name)
+    summary = run_one(args.shop, args.out, args.name, args.studio)
     if summary["error"]:
         print(f"ERROR: {summary['error']}", flush=True)
         raise SystemExit(2)
