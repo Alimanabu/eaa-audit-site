@@ -67,9 +67,9 @@ def quote_blocks():
               "place orders or submit forms), the mobile view, WCAG 2.2, an accessibility statement, a re-check after "
               "your fixes, monitoring, and fixing your website."),
         ("h", "4. Delivery"),
-        ("p", "The report is delivered by email within 3 business days of your confirmed order. Delivery date: "
-              "[DELIVERY DATE]. Your order is confirmed when you accept this quote in writing, we have confirmed the "
-              "page list, and the payment has arrived."),
+        ("p", "The report is delivered by email within 3 business days of receiving your payment. Delivery date: "
+              "[DELIVERY DATE]. Your order is confirmed when you accept this quote in writing and we have confirmed the "
+              "page list. Work starts when the payment has arrived."),
         ("h", "5. Price"),
         ("table", ["Item", "Price"], [["Automated audit, up to 10 pages (introductory price)", PRICE],
                                       ["Total", PRICE]], [12.0, 4.6]),
