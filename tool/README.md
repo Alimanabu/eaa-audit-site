@@ -13,3 +13,17 @@ Needs Playwright with Chromium, python-docx, Pillow and reportlab. Run with the 
 6. Run `check_anon` with `Python314\python.exe`: the `python` from Git Bash has no Pillow. `python check_anon.py out/sample-001`: searches the shareable files for traces, with OCR on the pictures at normal size and enlarged 3 times. Any word readable in a picture counts as a trace, except Search, Menu, Cart and the `image` caption. Names from `VENDORS`, `ku…` widget classes and the CSS classes reported in `results.json` count as traces in the text too; a new vendor goes into `VENDORS`. Exit code 1 means a trace was found.
 
 The keyboard pass presses Tab, and Enter on same-page skip links only. The tool never places orders or submits forms. PDFs are untagged: reportlab cannot tag them.
+
+## Free one-page snapshot for a cold email (`quick.py`)
+
+One shop, one command, one PDF: `python quick.py https://www.shop.nl` writes `out/quick/shop.nl/EAA_free_snapshot_shop.nl.pdf` (1 page A4: pages checked, violations, WCAG criteria not passed, the 3 biggest problems each with a framed picture of the element, what is wrong, who it affects, a line about the full audit and https://eaa-audit.net). The same folder holds `results.json` (raw axe results, same format as `snapshot.py`), `summary.json` and `pictures/`. It needs about 1 to 1.5 minutes per shop.
+
+Pages: home, one category, one product, the cart; a contact or delivery page is added when the cart cannot be found or when fewer than 3 problems have a clean picture (at most 5 pages). The scan rules are those of `snapshot.py`: robots.txt, 2 s pause, cookies only rejected (in English, Dutch, French and German), nothing ordered or submitted. Before a picture is taken, what is left of a cookie dialog and every fixed or sticky bar that does not hold the element are hidden, so the picture shows the element and nothing on top of it.
+
+Many shops: `python quick.py --list shops.xlsx` (`.csv` or `.xlsx`, the column named site, website, url, domain or сайт, or give `--column NAME`). Each shop runs in its own process with a limit of 420 s (`--timeout`); a broken address or a shop that blocks the scan (HTTP 403 is common on large chains) is written to the summary and the run goes on. The summary is `out/quick/summary_<time>.csv` with the columns store, pages, violations, criteria, error, pdf, seconds.
+
+`python check_quick.py out/quick/shop.nl ...` is the acceptance check: 1 page; the numbers in the PDF equal the numbers counted again from `results.json`; no "fine", "penalty" or euro sign except the price of the audit; a red frame and no cookie wording in each picture. `python -m unittest test_check_quick` holds the negative tests.
+
+## Quote and invoice templates (`templates/`)
+
+`python templates/build_templates.py` writes `EAA_quote_template` and `EAA_invoice_template` as .docx and .pdf. Everything unknown until the first client is a yellow placeholder in square brackets ([IP NAME], [BIN], [IBAN], [SWIFT], [GOVERNING LAW] ...); `--check` re-reads all four files and compares the placeholders. Replace the brackets in the .docx, save as PDF, send.
