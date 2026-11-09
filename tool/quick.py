@@ -186,7 +186,7 @@ def category_candidates(links, root):
 
 def product_candidates(links, root, category_url):
     found = [(u, l) for u, l in local_links(links, root)
-             if l["img"] and u != category_url and not NOT_PRODUCT.search(u) and not l["footer"]
+             if (l["img"] or PRODUCT_HINT.search(u)) and u != category_url and not NOT_PRODUCT.search(u) and not l["footer"]
              and (PRODUCT_HINT.search(u) or (depth(u) >= 2 and not STRONG_CATEGORY.search(u)))]
     found.sort(key=lambda t: (not PRODUCT_HINT.search(t[0]), not t[1]["main"]))
     urls = [u for u, _ in found]
@@ -311,7 +311,11 @@ class Scanner:
                     print(f"  skip {prod}: {e}", flush=True)
             if product_url:
                 break
-            # a category without usable products stays in the scan, the next candidate is tried for the product
+            # no usable product here: this category page is dropped from the scan (the first one stays), the next
+            # candidate is tried, so that at most one category page is reported
+            if len([p for p in self.pages if p["type"] == "category"]) > 1:
+                self.pages.pop()
+                self.tabs.pop(rec["n"]).close()
         cart = pick_link(home_links, self.root, CART_HINT)
         for url in ([cart] if cart else []) + [self.root + p for p in CART_GUESSES]:
             try:
