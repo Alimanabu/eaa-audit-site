@@ -465,7 +465,7 @@ def choose_findings(scanner, summary, pictures):
         img.save(path, "JPEG", quality=88)
         findings.append({"rule": rule["id"], "impact": rule["impact"], "level": rule["level"],
                          "criteria": rule["criteria"], "elements": len(rule["unique"]), "instances": rule["instances"],
-                         "pages": len(set(rule["pages"])), "pageType": kind, "pageNumber": n, "selector": selector,
+                         "pages": len(rule["pages"]), "pageType": kind, "pageNumber": n, "selector": selector,
                          "picture": path.name, "where": where, "documented": rule["id"] in PLAIN,
                          "help": rule["help"]})
         findings[-1]["what"], findings[-1]["who"] = finding_texts(findings[-1], len(scanner.pages))
@@ -473,7 +473,7 @@ def choose_findings(scanner, summary, pictures):
     for item in skipped[:MAX_FINDINGS - len(findings)]:
         rule = next(r for r in ranked if r["id"] == item["rule"])
         f = {"rule": rule["id"], "impact": rule["impact"], "level": rule["level"], "criteria": rule["criteria"],
-             "elements": len(rule["unique"]), "instances": rule["instances"], "pages": len(set(rule["pages"])),
+             "elements": len(rule["unique"]), "instances": rule["instances"], "pages": len(rule["pages"]),
              "pageType": None, "pageNumber": None, "selector": None, "picture": None, "where": None,
              "documented": rule["id"] in PLAIN, "help": rule["help"]}
         f["what"], f["who"] = finding_texts(f, len(scanner.pages))
