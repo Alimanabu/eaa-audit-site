@@ -128,7 +128,7 @@ CATEGORY_HINT = re.compile(r"sale|solde|outlet|new|nouveau|nieuw|women|woman|fem
                            r"heren|kids|kinder|enfant|shop|collection|categor|produit|product|alle|boutique|mode|"
                            r"vetement|kleding|schoen|chaussure|maison|wonen|home|jeans|dress|robe|jurk", re.I)
 PRODUCT_HINT = re.compile(r"/(products?|produits?|producten|artikel|item|p|pd|dp)/[^/]+|-p-?\d+|/\d{5,}|\.html?$", re.I)
-CART_HINT = re.compile(r"cart|basket|winkelwagen|winkelmand|panier|warenkorb|/bag", re.I)
+CART_HINT = re.compile(r"(?<![a-z])cart(?![a-z])|basket|winkelwagen|winkelmand|panier|warenkorb|/bag", re.I)
 CONTACT_HINT = re.compile(r"contact|klantenservice|service-client|aide|customer-?service|help", re.I)
 INFO_HINT = re.compile(r"return|retour|delivery|verzend|bezorg|livraison|shipping|faq", re.I)
 CART_GUESSES = ("/cart", "/winkelwagen", "/winkelmand", "/panier", "/basket")
@@ -494,6 +494,17 @@ def finding_texts(f, total_pages):
     return f"{title}. Found on {elements}, on {f['pages']} of {total_pages} pages.", who
 
 
+def page_label(p):
+    """Name of a page in the report. A page scanned as the cart is called a cart only when its address says so;
+    otherwise the name comes from the page title (or the last part of the address), never from our own guess."""
+    if p["type"] != "cart" or CART_HINT.search(p.get("finalUrl") or p["url"]):
+        return PAGE_LABEL[p["type"]]
+    title = re.split(r"\s+[|–—-]\s+", (p.get("title") or "").strip())[0].strip()
+    if not title:
+        title = urllib.parse.urlparse(p["url"]).path.strip("/").split("/")[-1].replace("-", " ").replace("_", " ")
+    return f"page “{title[:40]}”" if title else "inner page"
+
+
 PAGE_LABEL = {"home": "home page", "category": "category page", "product": "product page", "cart": "cart",
               "contact": "contact page", "info": "help page", "page": "inner page"}
 
@@ -535,7 +546,7 @@ def build_pdf(summary, findings, pictures, path):
                                     ("TOPPADDING", (0, 0), (-1, 0), 7), ("BOTTOMPADDING", (0, 1), (-1, 1), 7),
                                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
     story += [tile_table, Spacer(1, 4),
-              Paragraph(safe("Pages: " + ", ".join(PAGE_LABEL[p["type"]] for p in summary["pageList"]) + "."), small),
+              Paragraph(safe("Pages: " + ", ".join(page_label(p) for p in summary["pageList"]) + "."), small),
               Spacer(1, 8)]
 
     if findings:
@@ -630,7 +641,7 @@ def run_one(raw, out_root, display=None, studio=False):
                 browser.close()
         summary.update({
             "scannedAt": scanned_at, "axeVersion": scanner.axe_version, "pages": len(s["pages"]),
-            "pageList": [{"type": p["type"], "url": p["url"]} for p in s["pages"]],
+            "pageList": [{"type": p["type"], "url": p["url"], "finalUrl": p.get("finalUrl"), "title": p.get("title")} for p in s["pages"]],
             "violations": s["levels"]["total"]["instances"], "distinctElements": s["levels"]["total"]["uniqueElements"],
             "criteriaFailed": s["failedCriteria"], "criteriaTotal": len(CRITERIA),
             "levels": s["levels"],
