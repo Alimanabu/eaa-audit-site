@@ -29,7 +29,7 @@ from playwright.sync_api import sync_playwright
 
 from report import summarise
 from report_pdf import FONTS, safe  # importing report_pdf registers the Vera fonts
-from snapshot import (AXE_JS, COVERAGE, PAUSE_S, RUN_AXE, VIEWPORT, inject_axe, robots_for, settle, slim_rule)
+from snapshot import (AXE_JS, COVERAGE, RUN_AXE, VIEWPORT, inject_axe, robots_for, settle, slim_rule)
 from wcag import AXE_TAGS, CRITERIA, IMPACT_ORDER, PLAIN
 
 HERE = Path(__file__).parent
@@ -38,6 +38,9 @@ AUDIT_PRICE = "€390"
 MAX_FINDINGS = 3
 MIN_PAGES = 3
 MAX_PAGES = 5
+PAUSE = 3   # seconds between two page loads of one shop: at most 1 page in 3 s
+BLOCK_TEXT = re.compile(r"captcha|verify (that )?you are (a )?human|just a moment|checking your browser|access denied|"
+                        r"are you a robot|vous .tes un robot|v.rification de s.curit.|attention required", re.I)
 SHOP_TIMEOUT_S = 420
 DEVICE_SCALE = 2
 CROP_MIN = (380, 170)   # css px
@@ -247,7 +250,7 @@ class Scanner:
         """Open one page in a new tab and scan it. Raises StoreError and closes the tab when the page is not usable."""
         if not self.allowed(url):
             raise StoreError(f"{kind}: disallowed by robots.txt")
-        wait = PAUSE_S - (time.time() - self.last_visit)
+        wait = PAUSE - (time.time() - self.last_visit)
         if self.last_visit and wait > 0:
             time.sleep(wait)
         page = ctx.new_page()
@@ -263,6 +266,9 @@ class Scanner:
             if rec["status"] and rec["status"] >= 400:
                 raise StoreError(f"{kind}: HTTP {rec['status']}")
             settle(page)
+            seen = page.evaluate("() => (document.title + ' ' + document.body.innerText).slice(0, 1500)")
+            if BLOCK_TEXT.search(seen) and len(seen) < 1500:
+                raise StoreError(f"{kind}: blocked by a bot check or captcha, not bypassed")
             self.close_cookies(page, first=(n == 1))
             rec["finalUrl"] = page.url
             rec["title"] = page.title()
@@ -420,6 +426,7 @@ def choose_findings(scanner, summary, pictures):
                          "pages": len(set(rule["pages"])), "pageType": kind, "pageNumber": n, "selector": selector,
                          "picture": path.name, "where": where, "documented": rule["id"] in PLAIN,
                          "help": rule["help"]})
+        findings[-1]["what"], findings[-1]["who"] = finding_texts(findings[-1], len(scanner.pages))
     return findings, skipped
 
 
@@ -434,6 +441,10 @@ def finding_texts(f, total_pages):
         who = "People who use a screen reader, a keyboard or voice control may be unable to use this part of the page."
     elements = f"{f['elements']} element{'s' if f['elements'] != 1 else ''}"
     return f"{title}. Found on {elements}, on {f['pages']} of {total_pages} pages.", who
+
+
+PAGE_LABEL = {"home": "home page", "category": "category page", "product": "product page", "cart": "cart",
+              "contact": "contact page", "info": "help page"}
 
 
 def build_pdf(summary, findings, pictures, path):
@@ -458,9 +469,10 @@ def build_pdf(summary, findings, pictures, path):
 
     date = datetime.fromisoformat(summary["scannedAt"]).strftime("%d %B %Y").lstrip("0")
     story = [Paragraph("EAA AUDIT · FREE ACCESSIBILITY SNAPSHOT", brand), Spacer(1, 3),
-             Paragraph(safe(summary["shop"]), title),
+             Paragraph(safe(summary.get("display") or summary["shop"]), title),
              Paragraph(safe(f"Scanned {date} · desktop view 1366 × 900 · WCAG 2.1 A and AA · "
-                            f"axe-core {summary['axeVersion']}"), small), Spacer(1, 8)]
+                            f"axe-core {summary['axeVersion']}" + (f" · {summary['shop']}" if summary.get("display") else "")), small),
+             Spacer(1, 8)]
 
     n_pages = summary["pages"]
     tiles = [(str(n_pages), "pages checked"), (str(summary["violations"]), f"violations found on {summary['distinctElements']} distinct elements"),
@@ -472,7 +484,7 @@ def build_pdf(summary, findings, pictures, path):
                                     ("TOPPADDING", (0, 0), (-1, 0), 7), ("BOTTOMPADDING", (0, 1), (-1, 1), 7),
                                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
     story += [tile_table, Spacer(1, 4),
-              Paragraph(safe("Pages: " + ", ".join(f"{p['type']}" for p in summary["pageList"]) + "."), small),
+              Paragraph(safe("Pages: " + ", ".join(PAGE_LABEL[p["type"]] for p in summary["pageList"]) + "."), small),
               Spacer(1, 8)]
 
     if findings:
@@ -530,7 +542,7 @@ def pdf_pages(path):
 
 # --- one shop --------------------------------------------------------------------------------------------------------
 
-def run_one(raw, out_root):
+def run_one(raw, out_root, display=None):
     started = time.time()
     root, slug = normalise(raw)
     out = Path(out_root) / slug
@@ -538,7 +550,7 @@ def run_one(raw, out_root):
     pictures.mkdir(parents=True, exist_ok=True)
     for old in list(pictures.glob("*")) + [out / "summary.json"]:
         old.unlink(missing_ok=True)
-    summary = {"shop": slug, "url": root + "/", "error": None}
+    summary = {"shop": slug, "display": display, "url": root + "/", "error": None}
     scanner = Scanner(root, slug, out)
     try:
         with sync_playwright() as p:
@@ -549,7 +561,7 @@ def run_one(raw, out_root):
                 scanned_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
                 while True:
                     result = {"shop": slug, "scannedAt": scanned_at, "viewport": VIEWPORT, "tags": AXE_TAGS,
-                              "axeVersion": scanner.axe_version, "chromium": browser.version, "pauseSeconds": PAUSE_S,
+                              "axeVersion": scanner.axe_version, "chromium": browser.version, "pauseSeconds": PAUSE,
                               "cookieBanner": scanner.banner, "automatedCoverage": scanner.coverage,
                               "pages": scanner.pages}
                     s = summarise(result)
@@ -566,6 +578,7 @@ def run_one(raw, out_root):
             "pageList": [{"type": p["type"], "url": p["url"]} for p in s["pages"]],
             "violations": s["levels"]["total"]["instances"], "distinctElements": s["levels"]["total"]["uniqueElements"],
             "criteriaFailed": s["failedCriteria"], "criteriaTotal": len(CRITERIA),
+            "levels": s["levels"],
             "findings": findings, "skippedRules": skipped, "cookieBanner": scanner.banner})
         pdf = out / f"EAA_free_snapshot_{slug}.pdf"
         build_pdf(summary, findings, pictures, pdf)
@@ -668,6 +681,7 @@ def main():
     ap.add_argument("--list", help=".csv or .xlsx with one shop per row")
     ap.add_argument("--column", help="name of the column with the address (default: site, website, url, domain)")
     ap.add_argument("--out", default=str(HERE / "out" / "quick"))
+    ap.add_argument("--name", help="shop name for the title of the PDF")
     ap.add_argument("--timeout", type=int, default=SHOP_TIMEOUT_S, help="seconds per shop in batch mode")
     args = ap.parse_args()
     if args.list:
@@ -675,7 +689,7 @@ def main():
         return
     if not args.shop:
         ap.error("give a shop address or --list")
-    summary = run_one(args.shop, args.out)
+    summary = run_one(args.shop, args.out, args.name)
     if summary["error"]:
         print(f"ERROR: {summary['error']}", flush=True)
         raise SystemExit(2)
