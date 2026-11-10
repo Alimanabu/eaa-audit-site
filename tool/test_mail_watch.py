@@ -94,8 +94,9 @@ def six(shops=SHOPS):
 class FakeIMAP:
     forbidden = ("store", "expunge", "delete", "copy", "move", "append", "create", "rename")
 
-    def __init__(self, raws, validity=111, spam=None, spam_name="Junk", spam_flag=True, fail_uids=(), empty_uids=()):
+    def __init__(self, raws, validity=111, spam=None, spam_name="Junk", spam_flag=True, fail_uids=(), empty_uids=(), on_fetch=None):
         self.fail_uids, self.empty_uids = set(fail_uids), set(empty_uids)
+        self.on_fetch = on_fetch
         self.boxes = {"INBOX": raws}
         self.list_lines = [rb'(\HasNoChildren) "." "INBOX"']
         if spam is not None:
@@ -148,6 +149,8 @@ class FakeIMAP:
             return "OK", [b" ".join(b"%d" % i for i in ids)]
         if cmd == "FETCH":
             assert "BODY.PEEK" in args[1], "чтение без PEEK ставит флаг прочитано"
+            if self.on_fetch:
+                self.on_fetch(int(args[0]))
             if int(args[0]) in self.fail_uids:
                 return "NO", [b"server busy"]
             if int(args[0]) in self.empty_uids:
@@ -671,3 +674,77 @@ def test_clipboard_cleared_even_if_save_fails(monkeypatch):
     with pytest.raises(OSError):
         mw.save_password()
     assert any("Set-Clipboard" in c for c in calls)
+
+
+# ------------------------------------------------------------ хвосты после ПРИНЯТО reviewer (5 пунктов)
+
+def without_message_id(raw: bytes) -> bytes:
+    return re.sub(rb"Message-ID:[^\r\n]*\r\n", b"", raw)
+
+
+def test_t1_dedup_key_never_empty_without_message_id(env, monkeypatch):
+    live = without_message_id(mime("Jean <jean@live-shop.example>", "Re: devis", "bonjour, un devis ?"))
+    assert b"Message-ID" not in live
+    auto = mime("Mon <support@mon-shop.example>", "Automatic reply", "away", extra="Auto-Submitted: auto-replied\r\n")
+    real = mw._atomic_save
+
+    def fail_xlsx(*a, **k):
+        raise PermissionError("xlsx открыт в Excel")
+    monkeypatch.setattr(mw, "_atomic_save", fail_xlsx)
+    rc, _ = go(env, [live, auto])                      # json записан, xlsx нет -> курсор стоит
+    assert rc == 3 and len(live_items(env)) == 1
+    assert live_items(env)[0]["message_id"] == "INBOX:1"
+    monkeypatch.setattr(mw, "_atomic_save", real)
+    rc, _ = go(env, [live, auto])                      # повтор: то же письмо второй раз
+    assert rc == 0 and len(live_items(env)) == 1
+    assert "автоответ" in rows(env.sent_xlsx)[2][5]
+
+
+def test_t2_corrupt_copy_made_once_over_24_runs(env):
+    env.live_json.parent.mkdir(parents=True)
+    env.live_json.write_text("битый{", encoding="utf-8")
+    for i in range(24):
+        rc, _ = go(env, [mime("P <p@live-shop.example>", "Re: x", "bonjour", mid=f"<c{i}@t>")])
+        assert rc == 3
+    assert sorted(f.name for f in env.live_json.parent.iterdir()) == ["eaa_mail.json", "eaa_mail.json.corrupt"]
+
+
+def test_t3_dsn_alias_recipient_found_in_text(env):
+    raw = dsn("contact@dead-shop.example")
+    raw = raw.replace(b"Final-Recipient: rfc822; contact@dead-shop.example", b"Final-Recipient: rfc822; alias@forward.example")
+    assert b"alias@forward.example" in raw
+    rc, _ = go(env, [raw])
+    assert rc == 0 and "нерабочий" in rows(env.sent_xlsx)[1][5]
+    assert [r[1] for r in rows(env.stop_xlsx)[1:]] == ["contact@dead-shop.example"]
+
+
+def test_t4_check_password_network_vs_refusal(capsys):
+    cfg = mw.Config()
+    for exc in (mw.imaplib.IMAP4.abort("socket error: EOF"), TimeoutError("t"), OSError("dns"),
+                mw.imaplib.IMAP4.error("[UNAVAILABLE] try later")):
+        def f(c, p, exc=exc):
+            raise exc
+        assert mw.check_password(cfg, imap_factory=f, password=PW) == 3
+        out = capsys.readouterr().out
+        assert "Нет связи с почтой, попробуйте позже" in out and "НЕ подошёл" not in out
+
+    def refuse(c, p):
+        raise mw.imaplib.IMAP4.error("[AUTHENTICATIONFAILED] Authentication failed.")
+    assert mw.check_password(cfg, imap_factory=refuse, password=PW) == 1
+    out = capsys.readouterr().out
+    assert "НЕ подошёл" in out and "Нет связи" not in out and PW not in out
+
+
+def test_t5_lock_refreshed_on_each_message(env, monkeypatch):
+    clock = [time.time()]
+    monkeypatch.setattr(mw.time, "time", lambda: clock[0])
+    other = []
+
+    def on_fetch(uid):
+        clock[0] += 400                                   # каждое письмо «читается» 400 с; всего 1200 с > 600
+        if uid == 3:                                      # второй запуск пытается перехватить замок
+            called = []
+            other.append((mw.run(env, imap_factory=lambda c, p: called.append(1), password=PW), called))
+    rc, _ = go(env, three_live(), on_fetch=on_fetch)
+    assert rc == 0 and other == [(4, [])]                 # второй получил код 4 и ящик не открывал
+    assert live_ids(env) == ["<m1@t>", "<m2@t>", "<m3@t>"]

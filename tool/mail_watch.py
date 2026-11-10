@@ -105,6 +105,9 @@ def save_password() -> int:
     return 0
 
 
+AUTH_FAIL = re.compile(r"authenticat|login failed|invalid credentials|bad credentials|wrong password", re.I)
+
+
 def check_password(cfg=None, imap_factory=None, password=None) -> int:
     """Только вход в ящик (письма не открываются). Пароль не печатается."""
     cfg = cfg or default_config()
@@ -114,11 +117,17 @@ def check_password(cfg=None, imap_factory=None, password=None) -> int:
         return 2
     try:
         M = (imap_factory or connect)(cfg, pw)
-    except imaplib.IMAP4.error:
-        print("Пароль НЕ подошёл: сервер отказал во входе. Скопируй пароль ещё раз и запусти снова.")
-        return 1
-    except Exception as e:  # noqa: BLE001
-        print(f"Нет связи с почтовым сервером ({type(e).__name__}), пароль не проверен.")
+    except imaplib.IMAP4.abort:
+        print("Нет связи с почтой, попробуйте позже. Пароль не проверен.")
+        return 3
+    except imaplib.IMAP4.error as e:
+        if AUTH_FAIL.search(str(e)):
+            print("Пароль НЕ подошёл: сервер отказал во входе. Скопируй пароль ещё раз и запусти снова.")
+            return 1
+        print("Нет связи с почтой, попробуйте позже. Пароль не проверен.")
+        return 3
+    except Exception:  # noqa: BLE001  (сеть, таймаут, DNS)
+        print("Нет связи с почтой, попробуйте позже. Пароль не проверен.")
         return 3
     try:
         M.logout()
@@ -425,9 +434,8 @@ def write_live(cfg: Config, lives: list) -> bool:
         except (ValueError, UnicodeDecodeError, OSError) as e:
             try:
                 dst = cfg.live_json.with_name(cfg.live_json.name + ".corrupt")
-                if dst.exists():
-                    dst = dst.with_name(f"{dst.name}.{datetime.now():%Y%m%d%H%M%S}")
-                shutil.copy2(cfg.live_json, dst)
+                if not dst.exists():                  # копия одна: каждый час новую не плодим
+                    shutil.copy2(cfg.live_json, dst)
             except OSError:
                 pass
             log(cfg, f"eaa_mail.json нечитаем ({type(e).__name__}), не перезаписываю; копия .corrupt рядом")
@@ -441,6 +449,16 @@ def write_live(cfg: Config, lives: list) -> bool:
         log(cfg, f"не записан eaa_mail.json: {e}")
         return False
     return True
+
+
+def _touch_lock(cfg: Config) -> None:
+    """Замок считается «старым» от последней активности: обновляем его время на каждом письме."""
+    p = cfg.state_json.with_name("mail_watch.lock")
+    try:
+        now = time.time()
+        os.utime(p, (now, now))
+    except OSError:
+        pass
 
 
 def _acquire_lock(cfg: Config):
@@ -513,7 +531,7 @@ class Fetched:
     failed: str = ""            # причина, если чтение оборвалось (курсор двигается только до got)
 
 
-def fetch_new(M, folder: str, last_uid: int, known_validity=None) -> Fetched:
+def fetch_new(M, folder: str, last_uid: int, known_validity=None, tick=None) -> Fetched:
     """Только чтение: select(readonly) и BODY.PEEK. Ошибка/пустой ответ FETCH — стоп: письма после него не берём."""
     typ, _ = M.select(_quote_folder(folder), readonly=True)
     if typ != "OK":
@@ -545,6 +563,8 @@ def fetch_new(M, folder: str, last_uid: int, known_validity=None) -> Fetched:
             failed = f"UID {u}: {type(e).__name__}"
         if typ == "OK" and raw:
             out.append((u, raw))
+            if tick:
+                tick()
             continue
         failed = failed or f"UID {u}: FETCH вернул {typ}, письмо не получено"
         break
@@ -584,20 +604,22 @@ def process(cfg: Config, fetched, stores: dict, state: dict):
     def silent(kind, folder, uid, msg, sender, why):
         log(cfg, f"{kind} [{folder} UID {uid}] от {sender or '?'}: «{str(msg.get('Subject', '') or '')[:80]}» ({why})")
 
-    def add_live(msg, body, sender, stores, folder, in_spam, note=""):
+    def add_live(msg, body, sender, stores, folder, in_spam, note="", uid=0):
         cnt["live"] += 1
-        mid = str(msg.get("Message-ID", "") or "").strip()
-        if mid and mid in seen:
+        mid = str(msg.get("Message-ID", "") or "").strip() or f"{folder}:{uid}"   # ключ дедупликации не бывает пустым
+        if mid in seen:
             return
         seen.add(mid)
         target = store_match(sender, stores)
         e = live_entry(msg, body, _domain(target) if target else (_domain(sender) if sender else ""), note)
+        e["message_id"] = mid
         e["folder"] = folder
         if in_spam:
             e["webmail_hint"] += f" (папка {folder}, письмо попало в спам)"
         lives.append(e)
 
     for folder, uid, raw in fetched:
+        _touch_lock(cfg)
         cnt["new"] += 1
         msg = email.message_from_bytes(raw, policy=policy.default)
         frm = getaddresses([str(msg.get("From", "") or "")])
@@ -612,11 +634,11 @@ def process(cfg: Config, fetched, stores: dict, state: dict):
             if v.kind == "dsn":
                 recs = [r for r in parse_dsn(msg) if r["status"] and r["action"]]
                 if not recs:                      # не разобрались — ничего не помечаем, но тревога
-                    add_live(msg, body, sender, stores, folder, in_spam, "недоставка не разобрана")
+                    add_live(msg, body, sender, stores, folder, in_spam, "недоставка не разобрана", uid=uid)
                     continue
                 cnt["dsn"] += 1
                 for r in recs:
-                    target = find_store_row([r["recipient"]] if r["recipient"] else cands, stores)
+                    target = find_store_row(([r["recipient"]] if r["recipient"] else []) + cands, stores)
                     if not target:
                         silent("недоставка", folder, uid, msg, sender, f"адрес {r['recipient'] or '?'} не в Отправлено.xlsx")
                         continue
@@ -629,7 +651,7 @@ def process(cfg: Config, fetched, stores: dict, state: dict):
                         silent("недоставка", folder, uid, msg, sender,
                                f"{target}: Action={r['action']} Status={r['status']} — не «не писать»")
             elif v.kind == "auto" and v.reason == "текст":
-                add_live(msg, body, sender, stores, folder, in_spam, "возможно автоответ")
+                add_live(msg, body, sender, stores, folder, in_spam, "возможно автоответ", uid=uid)
             elif v.kind == "auto":
                 cnt["auto"] += 1
                 target = find_store_row(cands, stores, sender)
@@ -646,11 +668,11 @@ def process(cfg: Config, fetched, stores: dict, state: dict):
                 cnt["service"] += 1
                 silent("служебное", folder, uid, msg, sender, v.reason)
             else:
-                add_live(msg, body, sender, stores, folder, in_spam)
+                add_live(msg, body, sender, stores, folder, in_spam, uid=uid)
         except Exception as e:  # noqa: BLE001  — лучше лишняя тревога, чем потерянное письмо
             log(cfg, f"[{folder} UID {uid}] ошибка разбора {type(e).__name__}: {str(e)[:100]}; записано как живое")
             try:
-                add_live(msg, "", sender, stores, folder, in_spam, "ошибка разбора")
+                add_live(msg, "", sender, stores, folder, in_spam, "ошибка разбора", uid=uid)
             except Exception:  # noqa: BLE001
                 pass
     return cnt, marks, stops, lives
@@ -694,7 +716,8 @@ def _run_locked(cfg: Config, imap_factory, pw: str) -> int:
         for name in names:
             old = fstate.get(name, {})
             try:
-                res = fetch_new(M, name, int(old.get("last_uid") or 0), old.get("uidvalidity"))
+                res = fetch_new(M, name, int(old.get("last_uid") or 0), old.get("uidvalidity"),
+                                tick=lambda: _touch_lock(cfg))
             except Exception as e:  # noqa: BLE001
                 if name == "INBOX":
                     raise
