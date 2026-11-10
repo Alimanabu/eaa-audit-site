@@ -14,13 +14,29 @@
   .skip{position:absolute;left:-999px;top:8px;background:var(--accent);color:var(--accent-fg);padding:8px 12px;border-radius:6px}
   .skip:focus{left:8px}
   header,main,footer{max-width:960px;margin:0 auto;padding:0 20px}
-  header{display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:space-between;align-items:center;padding-top:20px;padding-bottom:20px}
+  header{display:flex;gap:8px 18px;justify-content:space-between;align-items:center;min-height:56px}
   .brand{font-weight:700;font-size:18px;text-decoration:none;color:var(--fg)}
-  nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px 18px}
-  nav a{text-decoration:none;color:var(--muted);font-weight:500}
-  .hero{padding:48px 0 32px}
-  h1{font-size:clamp(28px,5vw,44px);line-height:1.15;margin:0 0 16px}
-  .lead{font-size:19px;color:var(--muted);max-width:640px;margin:0 0 24px}
+  nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0 20px}
+  nav a{text-decoration:none;color:var(--muted);font-weight:600;font-size:16px;display:inline-block;padding:12px 0}
+  nav .hide-m{display:none}
+  .hero{display:grid;gap:16px;padding:8px 0 24px}
+  .hero .txt{display:grid;gap:12px;align-content:start}
+  h1{font-size:30px;line-height:1.15;margin:0}
+  .lead{font-size:16px;color:var(--muted);margin:0}
+  .hero .btn{display:flex;align-items:center;justify-content:center;height:52px;margin:0;padding:0 22px;font-size:18px}
+  .price-link{font-size:16px;font-weight:600;display:inline-block;padding:4px 0}
+  .hero figure{margin:0}
+  .hero figure a{display:block;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(17,24,39,.10)}
+  .hero figure img{display:block;width:100%;height:auto}
+  figcaption{font-size:14px;color:var(--muted);margin-top:8px}
+  .click{display:none}
+  @media (hover:hover) and (pointer:fine){.tap{display:none}.click{display:inline}}
+  @media (min-width:900px){
+    header{min-height:72px} nav .hide-m{display:list-item}
+    .hero{grid-template-columns:1fr 440px;gap:40px;align-items:center;padding:24px 0 32px}
+    h1{font-size:44px} .lead{font-size:19px;max-width:560px} .hero .txt{gap:20px}
+    .hero .btn{display:inline-flex;width:max-content;padding:0 28px} .price-link{font-size:17px}
+  }
   .btn{display:inline-block;margin-bottom:8px;background:var(--accent);color:var(--accent-fg);text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:600}
   .btn.secondary{background:var(--soft);color:var(--fg)}
   .actions{display:flex;flex-wrap:wrap;column-gap:12px}
@@ -44,26 +60,31 @@
   <nav aria-label="Main">
     <ul>
       <li><a href="#pricing">Pricing</a></li>
-      <li><a href="#scope">What we check</a></li>
-      <li><a href="#how">How it works</a></li>
-      <li><a href="#about">About</a></li>
-      <li><a href="#contact">Contact</a></li>
+      <li class="hide-m"><a href="#scope">What we check</a></li>
+      <li class="hide-m"><a href="#how">How it works</a></li>
+      <li class="hide-m"><a href="#about">About</a></li>
+      <li class="hide-m"><a href="#contact">Contact</a></li>
     </ul>
   </nav>
 </header>
 
 <main id="main">
   <section class="hero" aria-labelledby="hero-title" style="border-top:0">
-    <h1 id="hero-title">Is your online shop ready for the European Accessibility Act?</h1>
-    <p class="lead">The EAA has applied to e-commerce sites and online services in the EU since 28 June 2025. We run an automated scan of your shop against WCAG 2.1 A and AA, show what fails and how to fix it, and state plainly what was not tested. A scan cannot prove that your shop conforms, and we do not claim that it does.</p>
-    <p class="actions">
+    <div class="txt">
+      <h1 id="hero-title">Is your online shop ready for the European Accessibility Act?</h1>
+      <p class="lead">We scan your shop against WCAG 2.1 A and AA and send a PDF with every error found and how to fix it.</p>
       <a class="btn" href="#contact">Get a free snapshot</a>
-      <a class="btn secondary" href="samples/EAA_snapshot_example-store.pdf">See a sample report (PDF)</a>
-    </p>
+      <a class="price-link" href="#pricing">Free snapshot or full audit for 390 EUR: see pricing →</a>
+    </div>
+    <figure>
+      <a href="samples/EAA_snapshot_example-store.pdf"><img src="samples/report-preview.png" width="1430" height="1219" alt="Sample snapshot report: 4 pages checked, 174 violations found, 6 of 50 WCAG criteria not passed"></a>
+      <figcaption>Example report page, shop name is a placeholder. <span class="tap">Tap</span><span class="click">Click</span> to open a full sample report (PDF).</figcaption>
+    </figure>
   </section>
 
   <section aria-labelledby="facts-title">
     <h2 id="facts-title">What the law means for your shop</h2>
+    <p>The EAA has applied to e-commerce sites and online services in the EU since 28 June 2025. We run an automated scan of your shop against WCAG 2.1 A and AA, show what fails and how to fix it, and state plainly what was not tested. A scan cannot prove that your shop conforms, and we do not claim that it does.</p>
     <div class="grid">
       <div class="fact"><strong>Who is covered.</strong> Online shops and digital services with 10 or more employees or more than 2 million EUR turnover. Smaller businesses are encouraged to comply and often asked by B2B customers.</div>
       <div class="fact"><strong>What is required.</strong> The Act sets accessibility requirements but does not name WCAG. In practice they are measured against the European standard EN 301 549, which builds on WCAG 2.1 level AA: readable contrast, keyboard access, labelled forms, text alternatives for images. An accessible checkout and an accessibility statement are expected too.</div>
