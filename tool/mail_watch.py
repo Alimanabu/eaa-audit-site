@@ -352,11 +352,38 @@ def connect(cfg: Config, password: str):
     return M
 
 
-def fetch_new(M, last_uid: int, known_validity=None):
-    """Только чтение: select(readonly) и BODY.PEEK. Возвращает [(uid, bytes)]."""
-    typ, _ = M.select("INBOX", readonly=True)
+SPAM_NAME = re.compile(r"^(inbox[./])?(spam|junk)([ ._-]?(e-?mail|mail|folder))?$", re.I)
+
+
+def find_spam_folder(M):
+    """Имя папки спама через LIST: по флагу Junk, иначе по имени Spam/Junk/INBOX.Spam. Нет — None."""
+    try:
+        typ, data = M.list()
+    except Exception:  # noqa: BLE001
+        return None
     if typ != "OK":
-        raise imaplib.IMAP4.error("не открылся INBOX")
+        return None
+    by_name = None
+    for line in data or []:
+        if not isinstance(line, (bytes, str)):
+            continue
+        t = line.decode("utf-8", "replace") if isinstance(line, bytes) else line
+        m = re.match(r'\((?P<flags>[^)]*)\)\s+(?:"[^"]*"|NIL)\s+(?P<name>.+)$', t.strip())
+        if not m:
+            continue
+        name = m.group("name").strip().strip('"')
+        if chr(92) + "junk" in m.group("flags").lower():
+            return name
+        if SPAM_NAME.match(name) and by_name is None:
+            by_name = name
+    return by_name
+
+
+def fetch_new(M, folder: str, last_uid: int, known_validity=None):
+    """Только чтение: select(readonly) и BODY.PEEK. Возвращает ([(uid, bytes)], uidvalidity)."""
+    typ, _ = M.select(folder, readonly=True)
+    if typ != "OK":
+        raise imaplib.IMAP4.error(f"не открылась папка {folder}")
     validity = None
     try:
         v = M.response("UIDVALIDITY")[1]
@@ -383,18 +410,21 @@ def fetch_new(M, last_uid: int, known_validity=None):
 # ---------------------------------------------------------------- проход
 
 def process(cfg: Config, fetched, stores: dict, state: dict):
-    """Разбор писем. Возвращает (счётчики, marks, stops, новые живые)."""
+    """fetched: [(папка, uid, bytes)]. Разбор писем. Возвращает (счётчики, marks, stops, новые живые)."""
     cnt = dict(new=0, dsn=0, auto=0, unsub=0, service=0, live=0)
     marks: dict[str, set] = {}
     stops, lives = [], []
     seen = {e.get("message_id") for e in state.get("live", []) if e.get("message_id")}
-    for uid, raw in fetched:
+    for folder, uid, raw in fetched:
         cnt["new"] += 1
         msg = email.message_from_bytes(raw, policy=policy.default)
         body, rest = message_texts(msg)
         v = classify(msg, body, rest, stores)
         frm = getaddresses([str(msg.get("From", "") or "")])
         sender = frm[0][1].lower() if frm else ""
+        in_spam = folder != "INBOX"
+        if in_spam and v.kind == "live" and not (find_store_row([], stores, sender) or msg.get("In-Reply-To")):
+            v = Verdict("service", "спам-папка: не ответ магазина")   # настоящий спам не поднимает тревогу
         cands = [a.lower() for a in EMAIL_RE.findall(rest + "\n" + body)]
         if v.kind == "dsn":
             cnt["dsn"] += 1
@@ -402,6 +432,7 @@ def process(cfg: Config, fetched, stores: dict, state: dict):
             target = find_store_row(cands, stores)
             if target:
                 marks.setdefault(target, set()).add(MARK_DEAD)
+                stops.append((stores[target], target, "адрес не существует"))
             else:
                 log(cfg, f"UID {uid}: недоставка, адрес не найден в Отправлено.xlsx")
         elif v.kind == "auto":
@@ -423,7 +454,11 @@ def process(cfg: Config, fetched, stores: dict, state: dict):
                 continue
             seen.add(mid)
             target = find_store_row([], stores, sender)
-            lives.append(live_entry(msg, body, _domain(target) if target else (_domain(sender) if sender else "")))
+            e = live_entry(msg, body, _domain(target) if target else (_domain(sender) if sender else ""))
+            e["folder"] = folder
+            if in_spam:
+                e["webmail_hint"] += f" (папка {folder}, письмо попало в спам)"
+            lives.append(e)
     return cnt, marks, stops, lives
 
 
@@ -436,11 +471,28 @@ def run(cfg: Config | None = None, imap_factory=None, password: str | None = Non
         return 2
     state = _read_json(cfg.state_json, {})
     state.setdefault("live", [])
-    last = int(state.get("last_uid", 0))
+    fstate = state.setdefault("folders", {})
+    if "last_uid" in state and "INBOX" not in fstate:      # состояние первой версии (одна папка)
+        fstate["INBOX"] = {"last_uid": state.pop("last_uid"), "uidvalidity": state.pop("uidvalidity", None)}
+    fetched, newstate = [], {}
     M = None
     try:
         M = (imap_factory or connect)(cfg, pw)
-        fetched, validity = fetch_new(M, last, state.get("uidvalidity"))
+        names = ["INBOX"]
+        spam = find_spam_folder(M)
+        if spam and spam.upper() != "INBOX":
+            names.append(spam)
+        for name in names:
+            old = fstate.get(name, {})
+            try:
+                got, validity = fetch_new(M, name, int(old.get("last_uid") or 0), old.get("uidvalidity"))
+            except Exception as e:  # noqa: BLE001
+                if name == "INBOX":
+                    raise
+                log(cfg, f"папка {name} не прочитана: {type(e).__name__}: {str(e)[:100]}", secret=pw)
+                continue
+            fetched += [(name, u, r) for u, r in got]
+            newstate[name] = (got, validity)
     except Exception as e:  # noqa: BLE001  (в тексте ошибки пароля быть не должно; вырезаем на всякий случай)
         log(cfg, f"ошибка сети/IMAP: {type(e).__name__}: {str(e)[:200]}", secret=pw)
         return 1
@@ -475,10 +527,13 @@ def run(cfg: Config | None = None, imap_factory=None, password: str | None = Non
         except OSError as e:
             log(cfg, f"не записан eaa_mail.json: {e}")
             rc = 3
-    if advance and fetched:
-        state["last_uid"] = max(last, max(u for u, _ in fetched))
-    if validity:
-        state["uidvalidity"] = validity
+    for name, (got, validity) in newstate.items():
+        cur = fstate.setdefault(name, {})
+        if advance and got:
+            same = not (validity and cur.get("uidvalidity") and validity != cur["uidvalidity"])
+            cur["last_uid"] = max(cur.get("last_uid", 0) if same else 0, max(u for u, _ in got))
+        if validity:
+            cur["uidvalidity"] = validity
     state["checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         _write_json(cfg.state_json, state)
