@@ -1,2 +1,4 @@
 tool/out/
 __pycache__/
+state/
+logs/
