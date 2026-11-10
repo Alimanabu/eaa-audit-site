@@ -3,11 +3,14 @@
     python mail_watch.py            — один проход: новые письма -> разбор -> пометки/тревога -> выход
     python mail_watch.py save       — владелец один раз: пароль из буфера обмена -> DPAPI -> буфер очищается
                                       (запускать через «Сохранить_пароль_почты.bat»)
+    python mail_watch.py check      — войти в ящик (без чтения писем) и сказать «пароль верный / не подошёл»
 
 Ящик открывается ТОЛЬКО на чтение (select readonly + BODY.PEEK): письма не удаляются, не перемещаются,
 флаг «прочитано» не ставится. Пароль нигде не печатается и не пишется (в сообщениях об ошибках вырезается).
 
-Коды выхода: 0 — ок; 1 — ошибка сети/IMAP; 2 — нет пароля; 3 — не удалось записать xlsx/состояние.
+Коды выхода: 0 — ок; 1 — ошибка сети/IMAP/чтения письма; 2 — нет пароля; 3 — не удалось записать xlsx/json/состояние;
+4 — уже идёт другой запуск.
+Главное правило: курсор (last_uid) двигается только до подтверждённого результата; живой ответ не теряется.
 Пути настраиваются переменными EAA_MAIL_* (см. default_config), нужны тестам и копиям.
 """
 from __future__ import annotations
@@ -93,10 +96,35 @@ def save_password() -> int:
     if not pw or "\n" in pw or "\r" in pw:
         print("В буфере обмена нет пароля (одна строка). Скопируй пароль ящика hello@eaa-audit.net и запусти снова.")
         return 1
-    STORE.parent.mkdir(parents=True, exist_ok=True)
-    STORE.write_bytes(_dpapi(pw.encode(), True))
-    subprocess.run(["powershell", "-NoProfile", "-Command", "Set-Clipboard -Value ' '"], timeout=30)
+    try:
+        STORE.parent.mkdir(parents=True, exist_ok=True)
+        STORE.write_bytes(_dpapi(pw.encode(), True))
+    finally:
+        subprocess.run(["powershell", "-NoProfile", "-Command", "Set-Clipboard -Value ' '"], timeout=30)
     print("Пароль сохранён зашифрованным, буфер обмена очищен.")
+    return 0
+
+
+def check_password(cfg=None, imap_factory=None, password=None) -> int:
+    """Только вход в ящик (письма не открываются). Пароль не печатается."""
+    cfg = cfg or default_config()
+    pw = password if password is not None else get_password()
+    if not pw:
+        print("Пароль не сохранён: запусти Сохранить_пароль_почты.bat")
+        return 2
+    try:
+        M = (imap_factory or connect)(cfg, pw)
+    except imaplib.IMAP4.error:
+        print("Пароль НЕ подошёл: сервер отказал во входе. Скопируй пароль ещё раз и запусти снова.")
+        return 1
+    except Exception as e:  # noqa: BLE001
+        print(f"Нет связи с почтовым сервером ({type(e).__name__}), пароль не проверен.")
+        return 3
+    try:
+        M.logout()
+    except Exception:  # noqa: BLE001
+        pass
+    print("Пароль верный: вход в ящик выполнен.")
     return 0
 
 
@@ -143,12 +171,47 @@ SERVICE_DOMAINS = ("namecheap.com", "privateemail.com", "github.com", "google.co
                    "eaa-audit.net", "dmarcian.com", "postmarkapp.com")
 
 
+GENERIC_DOMAINS = frozenset((
+    "gmail.com", "googlemail.com", "outlook.com", "outlook.fr", "outlook.ie", "hotmail.com", "hotmail.fr",
+    "hotmail.co.uk", "live.com", "live.fr", "msn.com", "yahoo.com", "yahoo.fr", "yahoo.ie", "yahoo.co.uk", "ymail.com",
+    "orange.fr", "wanadoo.fr", "free.fr", "sfr.fr", "neuf.fr", "bbox.fr", "laposte.net", "icloud.com", "me.com",
+    "aol.com", "proton.me", "protonmail.com", "gmx.com", "gmx.de", "gmx.net", "web.de", "t-online.de", "eircom.net",
+    "iol.ie", "mail.com", "zoho.com", "yandex.com", "mail.ru"))
+
+
 def _domain(addr: str) -> str:
     return addr.rsplit("@", 1)[-1].lower().strip(">")
 
 
 def _same_domain(a: str, b: str) -> bool:
     return a == b or a.endswith("." + b) or b.endswith("." + a)
+
+
+def store_match(sender: str, stores: dict):
+    """Строка списка отправленных для отправителя: полный адрес; по домену — кроме общих почтовых доменов."""
+    if not sender:
+        return None
+    if sender in stores:
+        return sender
+    sd = _domain(sender)
+    if sd in GENERIC_DOMAINS:
+        return None
+    for a in stores:
+        ad = _domain(a)
+        if ad not in GENERIC_DOMAINS and _same_domain(sd, ad):
+            return a
+    return None
+
+
+QUOTE_RE = re.compile(
+    r"(?im)^[ \t]*(?:>|-{2,}\s*(?:original message|message d.origine|forwarded)|_{8,}|"
+    r"on\b[^\n]{0,200}?(?:\n[^\n]{0,120})?wrote:|le\b[^\n]{0,200}?(?:\n[^\n]{0,120})?a [ée]crit\s*:)")
+
+
+def strip_quote(body: str) -> str:
+    """Текст письма до цитаты («On … wrote:», «Le … a écrit», «-----Original Message»)."""
+    m = QUOTE_RE.search(body)
+    return body[:m.start()] if m else body
 
 
 def html_to_text(s: str) -> str:
@@ -199,7 +262,7 @@ def classify(msg, body: str, rest: str, stores: dict) -> Verdict:
     sdom = _domain(sender) if sender else ""
     ctype = msg.get_content_type()
     report_type = str(msg.get_param("report-type") or "").lower()
-    head = body[:800]
+    head = strip_quote(body)[:800]
 
     # а) недоставка
     if (DSN_FROM.search(sender) or DSN_FROM.search(str(msg.get("From", "")))
@@ -214,13 +277,12 @@ def classify(msg, body: str, rest: str, stores: dict) -> Verdict:
     auto_sub = str(msg.get("Auto-Submitted", "") or "").strip().lower()
     if ((auto_sub and auto_sub != "no") or msg.get("X-Autoreply") or msg.get("X-Autorespond")
             or str(msg.get("Precedence", "")).strip().lower() == "auto_reply"
-            or str(msg.get("X-Auto-Response-Suppress", "")).strip()
             or AUTO_SUBJ.search(subj)):
         return Verdict("auto", "заголовок/тема")
-    if AUTO_TEXT.search(subj) or AUTO_TEXT.search(head):
-        return Verdict("auto", "текст")
+    if AUTO_TEXT.search(head):
+        return Verdict("auto", "текст")        # без заголовка: process() запишет как живое «возможно автоответ»
     # в) отписка: только от адресата рассылки и только в начале письма (хвост «unsubscribe» бывает у любой рассылки)
-    is_store = sender in stores or any(_same_domain(sdom, _domain(a)) for a in stores)
+    is_store = store_match(sender, stores) is not None
     if is_store and (UNSUB_TEXT.search(subj) or UNSUB_TEXT.search(head[:600])):
         return Verdict("unsub", "отписка")
     # г) служебное, рассылки, SEO
@@ -232,14 +294,10 @@ def classify(msg, body: str, rest: str, stores: dict) -> Verdict:
 
 
 def find_store_row(candidates, stores: dict, sender: str = ""):
-    """Адрес из списка отправленных: точный адрес отправителя, иначе тот же домен, иначе любой адрес из текста."""
-    if sender in stores:
-        return sender
-    sd = _domain(sender) if sender else ""
-    if sd:
-        for a in stores:
-            if _same_domain(sd, _domain(a)):
-                return a
+    """Адрес из списка отправленных: отправитель (адрес/домен, но не общий почтовый), иначе любой адрес из текста."""
+    m = store_match(sender, stores)
+    if m:
+        return m
     for c in candidates:
         if c in stores:
             return c
@@ -328,20 +386,81 @@ def _write_json(p: Path, data) -> None:
     os.replace(tmp, p)
 
 
-def live_entry(msg, body: str, store_domain: str) -> dict:
+def live_entry(msg, body: str, store_domain: str, note: str = "") -> dict:
     frm = str(msg.get("From", "") or "")
     subj = str(msg.get("Subject", "") or "")
     try:
         when = parsedate_to_datetime(str(msg.get("Date"))).strftime("%Y-%m-%d %H:%M:%S")
     except Exception:  # noqa: BLE001
         when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return {
+    e = {
         "time": when, "from": frm, "store_domain": store_domain, "subject": subj,
         "text": re.sub(r"\s+", " ", body).strip()[:500],
         "message_id": str(msg.get("Message-ID", "") or "").strip(),
         "webmail_hint": f"{WEBMAIL} — Входящие, искать «{subj}» от {frm}",
         "alert": True,
     }
+    if note:
+        e["note"] = note
+        e["webmail_hint"] = f"[{note}] " + e["webmail_hint"]
+    return e
+
+
+def _live_ids(cfg: Config) -> set:
+    d = _read_json(cfg.live_json, {})
+    return {i.get("message_id") for i in d.get("items", []) if isinstance(i, dict)} if isinstance(d, dict) else set()
+
+
+def write_live(cfg: Config, lives: list) -> bool:
+    """Дописать живые в eaa_mail.json. Нечитаемый файл не перезаписываем: копия .corrupt, журнал, False."""
+    if not lives:
+        return True
+    items = []
+    if cfg.live_json.exists():
+        try:
+            prev = json.loads(cfg.live_json.read_text(encoding="utf-8"))
+            if not isinstance(prev, dict) or not isinstance(prev.get("items", []), list):
+                raise ValueError("не та схема")
+            items = prev.get("items", [])
+        except (ValueError, UnicodeDecodeError, OSError) as e:
+            try:
+                dst = cfg.live_json.with_name(cfg.live_json.name + ".corrupt")
+                if dst.exists():
+                    dst = dst.with_name(f"{dst.name}.{datetime.now():%Y%m%d%H%M%S}")
+                shutil.copy2(cfg.live_json, dst)
+            except OSError:
+                pass
+            log(cfg, f"eaa_mail.json нечитаем ({type(e).__name__}), не перезаписываю; копия .corrupt рядом")
+            return False
+    have = {i.get("message_id") for i in items if isinstance(i, dict)}
+    items += [e for e in lives if not e["message_id"] or e["message_id"] not in have]
+    try:
+        _write_json(cfg.live_json, {"updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "alert": any(i.get("alert") for i in items if isinstance(i, dict)), "items": items})
+    except OSError as e:
+        log(cfg, f"не записан eaa_mail.json: {e}")
+        return False
+    return True
+
+
+def _acquire_lock(cfg: Config):
+    p = cfg.state_json.with_name("mail_watch.lock")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    for _ in range(2):
+        try:
+            fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            return p
+        except FileExistsError:
+            try:
+                if time.time() - p.stat().st_mtime > 600:      # замок от упавшего запуска
+                    p.unlink()
+                    continue
+            except OSError:
+                pass
+            return None
+    return None
 
 
 # ---------------------------------------------------------------- IMAP
@@ -379,9 +498,24 @@ def find_spam_folder(M):
     return by_name
 
 
-def fetch_new(M, folder: str, last_uid: int, known_validity=None):
-    """Только чтение: select(readonly) и BODY.PEEK. Возвращает ([(uid, bytes)], uidvalidity)."""
-    typ, _ = M.select(folder, readonly=True)
+def _quote_folder(name: str) -> str:
+    """imaplib не квотирует имена папок сам: с пробелом/скобками/кавычкой нужны двойные кавычки."""
+    if name.startswith('"') or not re.search(r'[\s()"{%*\\]', name):
+        return name
+    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+@dataclass
+class Fetched:
+    got: list                   # [(uid, bytes)] — непрерывный префикс списка UID, без пропусков
+    validity: int | None
+    reset: bool = False         # UIDVALIDITY изменился: курсор этой папки обнуляется
+    failed: str = ""            # причина, если чтение оборвалось (курсор двигается только до got)
+
+
+def fetch_new(M, folder: str, last_uid: int, known_validity=None) -> Fetched:
+    """Только чтение: select(readonly) и BODY.PEEK. Ошибка/пустой ответ FETCH — стоп: письма после него не берём."""
+    typ, _ = M.select(_quote_folder(folder), readonly=True)
     if typ != "OK":
         raise imaplib.IMAP4.error(f"не открылась папка {folder}")
     validity = None
@@ -390,91 +524,166 @@ def fetch_new(M, folder: str, last_uid: int, known_validity=None):
         validity = int(v[0]) if v and v[0] else None
     except Exception:  # noqa: BLE001
         pass
-    if validity and known_validity and validity != known_validity:
+    reset = bool(validity and known_validity and validity != known_validity)
+    if reset:
         last_uid = 0  # ящик пересоздан: читаем заново с 09.11, живые не дублируются по Message-ID
     if last_uid:
         typ, data = M.uid("SEARCH", None, "UID", f"{last_uid + 1}:*")
     else:
         typ, data = M.uid("SEARCH", None, "SINCE", FIRST_RUN_SINCE)
-    uids = sorted(int(x) for x in (data[0] or b"").split()) if typ == "OK" else []
+    if typ != "OK":
+        raise imaplib.IMAP4.error(f"SEARCH в папке {folder} не удался")
+    uids = sorted(int(x) for x in (data[0] or b"").split())
     uids = [u for u in uids if u > last_uid]
-    out = []
+    out, failed = [], ""
     for u in uids:
-        typ, d = M.uid("FETCH", str(u), "(BODY.PEEK[])")
-        raw = next((x[1] for x in (d or []) if isinstance(x, tuple)), None)
+        try:
+            typ, d = M.uid("FETCH", str(u), "(BODY.PEEK[])")
+            raw = next((x[1] for x in (d or []) if isinstance(x, tuple)), None)
+        except Exception as e:  # noqa: BLE001
+            typ, raw = "ERR", None
+            failed = f"UID {u}: {type(e).__name__}"
         if typ == "OK" and raw:
             out.append((u, raw))
-    return out, validity
+            continue
+        failed = failed or f"UID {u}: FETCH вернул {typ}, письмо не получено"
+        break
+    return Fetched(out, validity, reset, failed)
 
 
 # ---------------------------------------------------------------- проход
 
+MARK_TEMP = "недоставка временно/отказ"
+HARD_STATUS = re.compile(r"^5\.1\.\d+$")
+
+
+def parse_dsn(msg) -> list:
+    """Из частей message/delivery-status: [{recipient, action, status, diag}]. Нет Status — запись не считается разобранной."""
+    out = []
+    for part in msg.walk():
+        st, fr = part.get("Status"), part.get("Final-Recipient") or part.get("Original-Recipient")
+        if not (st or fr):
+            continue
+        m = re.search(r"\d\.\d{1,3}\.\d{1,3}", str(st or ""))
+        out.append(dict(
+            recipient=str(fr or "").split(";", 1)[-1].strip().strip("<>").lower(),
+            action=str(part.get("Action", "") or "").strip().lower(),
+            status=m.group(0) if m else "",
+            diag=re.sub(r"\s+", " ", str(part.get("Diagnostic-Code", "") or "")).strip()[:120]))
+    return out
+
+
 def process(cfg: Config, fetched, stores: dict, state: dict):
-    """fetched: [(папка, uid, bytes)]. Разбор писем. Возвращает (счётчики, marks, stops, новые живые)."""
+    """fetched: [(папка, uid, bytes)]. Разбор писем. Возвращает (счётчики, marks, stops, новые живые).
+    Сбой разбора одного письма не останавливает остальные и не теряет письмо: оно записывается как живое."""
     cnt = dict(new=0, dsn=0, auto=0, unsub=0, service=0, live=0)
     marks: dict[str, set] = {}
     stops, lives = [], []
-    seen = {e.get("message_id") for e in state.get("live", []) if e.get("message_id")}
+    seen = {e.get("message_id") for e in state.get("live", []) if e.get("message_id")} | _live_ids(cfg)
+
+    def silent(kind, folder, uid, msg, sender, why):
+        log(cfg, f"{kind} [{folder} UID {uid}] от {sender or '?'}: «{str(msg.get('Subject', '') or '')[:80]}» ({why})")
+
+    def add_live(msg, body, sender, stores, folder, in_spam, note=""):
+        cnt["live"] += 1
+        mid = str(msg.get("Message-ID", "") or "").strip()
+        if mid and mid in seen:
+            return
+        seen.add(mid)
+        target = store_match(sender, stores)
+        e = live_entry(msg, body, _domain(target) if target else (_domain(sender) if sender else ""), note)
+        e["folder"] = folder
+        if in_spam:
+            e["webmail_hint"] += f" (папка {folder}, письмо попало в спам)"
+        lives.append(e)
+
     for folder, uid, raw in fetched:
         cnt["new"] += 1
         msg = email.message_from_bytes(raw, policy=policy.default)
-        body, rest = message_texts(msg)
-        v = classify(msg, body, rest, stores)
         frm = getaddresses([str(msg.get("From", "") or "")])
         sender = frm[0][1].lower() if frm else ""
         in_spam = folder != "INBOX"
-        if in_spam and v.kind == "live" and not (find_store_row([], stores, sender) or msg.get("In-Reply-To")):
-            v = Verdict("service", "спам-папка: не ответ магазина")   # настоящий спам не поднимает тревогу
-        cands = [a.lower() for a in EMAIL_RE.findall(rest + "\n" + body)]
-        if v.kind == "dsn":
-            cnt["dsn"] += 1
-            # адрес получателя — из текста/вложений, а не отправитель (это mailer-daemon)
-            target = find_store_row(cands, stores)
-            if target:
-                marks.setdefault(target, set()).add(MARK_DEAD)
-                stops.append((stores[target], target, "адрес не существует"))
+        try:
+            body, rest = message_texts(msg)
+            v = classify(msg, body, rest, stores)
+            if in_spam and v.kind == "live" and not (store_match(sender, stores) or msg.get("In-Reply-To")):
+                v = Verdict("service", "спам-папка: не ответ магазина")   # настоящий спам не поднимает тревогу
+            cands = [a.lower() for a in EMAIL_RE.findall(rest + "\n" + body)]
+            if v.kind == "dsn":
+                recs = [r for r in parse_dsn(msg) if r["status"] and r["action"]]
+                if not recs:                      # не разобрались — ничего не помечаем, но тревога
+                    add_live(msg, body, sender, stores, folder, in_spam, "недоставка не разобрана")
+                    continue
+                cnt["dsn"] += 1
+                for r in recs:
+                    target = find_store_row([r["recipient"]] if r["recipient"] else cands, stores)
+                    if not target:
+                        silent("недоставка", folder, uid, msg, sender, f"адрес {r['recipient'] or '?'} не в Отправлено.xlsx")
+                        continue
+                    if r["action"] == "failed" and HARD_STATUS.match(r["status"]):
+                        marks.setdefault(target, set()).add(MARK_DEAD)
+                        stops.append((stores[target], target,
+                                      f"адрес не существует ({r['status']}: {r['diag'] or 'без текста'})"))
+                    else:
+                        marks.setdefault(target, set()).add(MARK_TEMP)
+                        silent("недоставка", folder, uid, msg, sender,
+                               f"{target}: Action={r['action']} Status={r['status']} — не «не писать»")
+            elif v.kind == "auto" and v.reason == "текст":
+                add_live(msg, body, sender, stores, folder, in_spam, "возможно автоответ")
+            elif v.kind == "auto":
+                cnt["auto"] += 1
+                target = find_store_row(cands, stores, sender)
+                if target:
+                    marks.setdefault(target, set()).add(MARK_AUTO)
+                silent("автоответ", folder, uid, msg, sender, v.reason)
+            elif v.kind == "unsub":
+                cnt["unsub"] += 1
+                target = store_match(sender, stores)
+                stops.append((stores[target] if target else _domain(sender), sender,
+                              "отписка/не писать (ответ на рассылку)"))
+                silent("отписка", folder, uid, msg, sender, v.reason)
+            elif v.kind == "service":
+                cnt["service"] += 1
+                silent("служебное", folder, uid, msg, sender, v.reason)
             else:
-                log(cfg, f"UID {uid}: недоставка, адрес не найден в Отправлено.xlsx")
-        elif v.kind == "auto":
-            cnt["auto"] += 1
-            target = find_store_row(cands, stores, sender)
-            if target:
-                marks.setdefault(target, set()).add(MARK_AUTO)
-        elif v.kind == "unsub":
-            cnt["unsub"] += 1
-            target = find_store_row([], stores, sender)
-            stops.append((stores.get(target, _domain(sender)) if target else _domain(sender),
-                          sender, "отписка/не писать (ответ на рассылку)"))
-        elif v.kind == "service":
-            cnt["service"] += 1
-        else:
-            cnt["live"] += 1
-            mid = str(msg.get("Message-ID", "") or "").strip()
-            if mid and mid in seen:
-                continue
-            seen.add(mid)
-            target = find_store_row([], stores, sender)
-            e = live_entry(msg, body, _domain(target) if target else (_domain(sender) if sender else ""))
-            e["folder"] = folder
-            if in_spam:
-                e["webmail_hint"] += f" (папка {folder}, письмо попало в спам)"
-            lives.append(e)
+                add_live(msg, body, sender, stores, folder, in_spam)
+        except Exception as e:  # noqa: BLE001  — лучше лишняя тревога, чем потерянное письмо
+            log(cfg, f"[{folder} UID {uid}] ошибка разбора {type(e).__name__}: {str(e)[:100]}; записано как живое")
+            try:
+                add_live(msg, "", sender, stores, folder, in_spam, "ошибка разбора")
+            except Exception:  # noqa: BLE001
+                pass
     return cnt, marks, stops, lives
 
 
 def run(cfg: Config | None = None, imap_factory=None, password: str | None = None) -> int:
     cfg = cfg or default_config()
-    t0 = time.time()
     pw = password if password is not None else get_password()
     if not pw:
         log(cfg, "нет пароля, запусти Сохранить_пароль_почты.bat")
         return 2
+    lock = _acquire_lock(cfg)
+    if lock is None:
+        log(cfg, "уже идёт другой запуск (замок state/mail_watch.lock), выхожу")
+        return 4
+    try:
+        return _run_locked(cfg, imap_factory, pw)
+    finally:
+        try:
+            lock.unlink()
+        except OSError:
+            pass
+
+
+def _run_locked(cfg: Config, imap_factory, pw: str) -> int:
+    t0 = time.time()
     state = _read_json(cfg.state_json, {})
     state.setdefault("live", [])
     fstate = state.setdefault("folders", {})
     if "last_uid" in state and "INBOX" not in fstate:      # состояние первой версии (одна папка)
         fstate["INBOX"] = {"last_uid": state.pop("last_uid"), "uidvalidity": state.pop("uidvalidity", None)}
-    fetched, newstate = [], {}
+    fetched, results = [], {}
+    rc = 0
     M = None
     try:
         M = (imap_factory or connect)(cfg, pw)
@@ -485,14 +694,18 @@ def run(cfg: Config | None = None, imap_factory=None, password: str | None = Non
         for name in names:
             old = fstate.get(name, {})
             try:
-                got, validity = fetch_new(M, name, int(old.get("last_uid") or 0), old.get("uidvalidity"))
+                res = fetch_new(M, name, int(old.get("last_uid") or 0), old.get("uidvalidity"))
             except Exception as e:  # noqa: BLE001
                 if name == "INBOX":
                     raise
                 log(cfg, f"папка {name} не прочитана: {type(e).__name__}: {str(e)[:100]}", secret=pw)
+                rc = 1
                 continue
-            fetched += [(name, u, r) for u, r in got]
-            newstate[name] = (got, validity)
+            if res.failed:
+                log(cfg, f"папка {name}: чтение оборвано ({res.failed}); курсор встанет перед этим письмом", secret=pw)
+                rc = 1
+            fetched += [(name, u, r) for u, r in res.got]
+            results[name] = res
     except Exception as e:  # noqa: BLE001  (в тексте ошибки пароля быть не должно; вырезаем на всякий случай)
         log(cfg, f"ошибка сети/IMAP: {type(e).__name__}: {str(e)[:200]}", secret=pw)
         return 1
@@ -508,32 +721,26 @@ def run(cfg: Config | None = None, imap_factory=None, password: str | None = Non
     except Exception as e:  # noqa: BLE001
         log(cfg, f"ошибка разбора: {type(e).__name__}: {str(e)[:200]}", secret=pw)
         return 3
-    rc = 0
+    advance = True                 # курсор двигаем, только если всё нужное записано
     try:
         apply_marks(cfg, marks, stops)
-        advance = True
-    except Exception as e:  # noqa: BLE001  (например, xlsx открыт в Excel) — last_uid не двигаем, повтор безопасен
+    except Exception as e:  # noqa: BLE001  (например, xlsx открыт в Excel)
         log(cfg, f"не записан xlsx: {type(e).__name__}: {str(e)[:200]}")
         advance, rc = False, 3
-    if lives:
-        state["live"].extend(lives)
-        try:
-            prev = _read_json(cfg.live_json, {})
-            items = prev.get("items", []) if isinstance(prev, dict) else []
-            have = {i.get("message_id") for i in items}
-            items += [e for e in lives if e["message_id"] not in have or not e["message_id"]]
-            _write_json(cfg.live_json, {"updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                        "alert": any(i.get("alert") for i in items), "items": items})
-        except OSError as e:
-            log(cfg, f"не записан eaa_mail.json: {e}")
-            rc = 3
-    for name, (got, validity) in newstate.items():
+    if not write_live(cfg, lives):
+        advance, rc = False, 3
+    else:
+        state["live"].extend(lives)           # «виденным» живое считается только после записи в json
+    for name, res in results.items():
         cur = fstate.setdefault(name, {})
-        if advance and got:
-            same = not (validity and cur.get("uidvalidity") and validity != cur["uidvalidity"])
-            cur["last_uid"] = max(cur.get("last_uid", 0) if same else 0, max(u for u, _ in got))
-        if validity:
-            cur["uidvalidity"] = validity
+        known = cur.get("uidvalidity")
+        if res.validity and known and res.validity != known:
+            cur.clear()
+            cur.update(last_uid=0, uidvalidity=res.validity)      # одним действием
+        elif res.validity and not known:
+            cur["uidvalidity"] = res.validity
+        if advance and res.got:
+            cur["last_uid"] = max(int(cur.get("last_uid") or 0), max(u for u, _ in res.got))
     state["checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         _write_json(cfg.state_json, state)
@@ -548,6 +755,8 @@ def run(cfg: Config | None = None, imap_factory=None, password: str | None = Non
 def main(argv) -> int:
     if len(argv) > 1 and argv[1] == "save":
         return save_password()
+    if len(argv) > 1 and argv[1] == "check":
+        return check_password()
     return run()
 
 
@@ -556,7 +765,4 @@ if __name__ == "__main__":
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:  # noqa: BLE001
         pass
-    code = main(sys.argv)
-    if len(sys.argv) > 1 and sys.argv[1] == "save":
-        os.system("pause")
-    sys.exit(code)
+    sys.exit(main(sys.argv))
