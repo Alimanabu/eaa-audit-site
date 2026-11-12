@@ -28,13 +28,14 @@ SHOPS = [
 ]
 
 
-def make_xlsx(path: Path, shops=SHOPS):
+def make_xlsx(path: Path, shops=SHOPS, subjects=None):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Отправлено"
     ws.append(HDR)
     for i, (n, a) in enumerate(shops):
-        ws.append([n, a, f"Accessibility check of {n}", f"{n}.pdf", f"2026-11-10 00:0{i}:00", "отправлено"])
+        subj = (subjects or {}).get(n, f"Accessibility check of {n}")
+        ws.append([n, a, subj, f"{n}.pdf", f"2026-11-10 00:0{i}:00", "отправлено"])
     wb.save(path)
 
 
@@ -49,7 +50,8 @@ def mime(frm, subj, body, extra="", mid=None, ctype="text/plain; charset=utf-8")
             f"Message-ID: {mid}\r\n{extra}MIME-Version: 1.0\r\nContent-Type: {ctype}\r\n\r\n{body}\r\n").encode()
 
 
-def dsn(addr, status="5.1.1", action="failed", diag="smtp; 550 5.1.1 No Such User Here", parsed=True):
+def dsn(addr, status="5.1.1", action="failed", diag="smtp; 550 5.1.1 No Such User Here", parsed=True,
+        text="host said: 550 No Such User Here"):
     b = "BOUNDARY1"
     ds = (f"--{b}\r\nContent-Type: message/delivery-status\r\n\r\nReporting-MTA: dns; mail.privateemail.com\r\n\r\n"
           f"Final-Recipient: rfc822; {addr}\r\nAction: {action}\r\nStatus: {status}\r\nDiagnostic-Code: {diag}\r\n") if parsed else ""
@@ -57,7 +59,7 @@ def dsn(addr, status="5.1.1", action="failed", diag="smtp; 550 5.1.1 No Such Use
             f"Subject: Undelivered Mail Returned to Sender\r\nDate: Tue, 10 Nov 2026 09:00:00 +0000\r\n"
             f"Message-ID: <dsn1@test>\r\nMIME-Version: 1.0\r\n"
             f"Content-Type: multipart/report; report-type=delivery-status; boundary={b}\r\n\r\n"
-            f"--{b}\r\nContent-Type: text/plain\r\n\r\nThis is the mail system. <{addr}>: host said: 550 No Such User Here\r\n"
+            f"--{b}\r\nContent-Type: text/plain\r\n\r\nThis is the mail system. <{addr}>: {text}\r\n"
             f"{ds}"
             f"--{b}\r\nContent-Type: text/rfc822-headers\r\n\r\nTo: {addr}\r\nSubject: Accessibility check\r\n"
             f"--{b}--\r\n").encode()
@@ -335,16 +337,24 @@ def test_on_copy_of_real_xlsx(env, tmp_path):
     """Прогон на копии настоящего Отправлено.xlsx: 6 видов с настоящими адресами из списка."""
     cfg = env
     shutil.copy2(REAL_XLSX, cfg.sent_xlsx)
+    wb = openpyxl.load_workbook(cfg.sent_xlsx)             # живой прогон 12.11 уже поставил метки в настоящий файл: в копии их снимаем
+    for row in wb.active.iter_rows(min_row=2):
+        if str(row[5].value or "").startswith("отправлено"):
+            row[5].value = "отправлено"
+    wb.save(cfg.sent_xlsx)
     names = {r[1].lower(): r[0] for r in rows(cfg.sent_xlsx)[1:]}
-    pick = {"dead": "contact@elogium.fr", "auto": "support@monbento.com", "slip": "bonjour@leslipfrancais.fr",
-            "unsub": "bonjour@lepetitballon.com"}
-    for a in pick.values():
-        assert a in names
+    by_dom = {}                                            # по одному адресу с каждого домена магазина, из самого файла
+    for a in names:
+        if mw._domain(a) not in mw.GENERIC_DOMAINS:
+            by_dom.setdefault(mw._domain(a), a)
+    assert len(by_dom) >= 5
+    dead, auto, slip, unsub, person_dom = list(by_dom.values())[:4] + [list(by_dom)[4]]
+    pick = {"dead": dead, "auto": auto, "slip": slip, "unsub": unsub}
     raws = [dsn(pick["dead"]),
             mime(f"x <{pick['auto']}>", "Automatic reply", "We are away", extra="Auto-Submitted: auto-replied\r\n"),
             mime(f"x <{pick['slip']}>", "Re: Accessibility check", "Votre message a bien été transmis à notre équipe."),
             dmarc(),
-            mime("Marie <marie@ldlc.com>", "Re: Accessibility check of LDLC", "Bonjour, pouvez-vous nous rappeler ?"),
+            mime(f"Marie <marie@{person_dom}>", "Re: Accessibility check", "Bonjour, pouvez-vous nous rappeler ?"),
             mime(f"x <{pick['unsub']}>", "Re: Accessibility check", "Ne plus recevoir vos messages, merci.")]
     before = rows(cfg.sent_xlsx)
     rc, _ = go(cfg, raws)
@@ -356,7 +366,7 @@ def test_on_copy_of_real_xlsx(env, tmp_path):
     assert "нерабочий" in diff[pick["dead"]] and "автоответ" in diff[pick["auto"]]
     assert [r[1] for r in rows(cfg.stop_xlsx)[1:]] == [pick["dead"], pick["unsub"]]
     items = json.loads(cfg.live_json.read_text(encoding="utf-8"))["items"]
-    assert {i["store_domain"] for i in items} == {"ldlc.com", "leslipfrancais.fr"}
+    assert {i["store_domain"] for i in items} == {person_dom, mw._domain(slip)}
 
 
 def test_dead_address_goes_to_do_not_write_once(env):
@@ -748,3 +758,594 @@ def test_t5_lock_refreshed_on_each_message(env, monkeypatch):
     rc, _ = go(env, three_live(), on_fetch=on_fetch)
     assert rc == 0 and other == [(4, [])]                 # второй получил код 4 и ящик не открывал
     assert live_ids(env) == ["<m1@t>", "<m2@t>", "<m3@t>"]
+
+
+# ---------------------------------------------------------------- 12.11, по живому запуску tester: Д1–Д3
+
+def dmarc_from(frm, subj="Report Domain: eaa-audit.net Submitter: x.example Report-ID: 1", text="Find attached the DMARC Aggregate Report.",
+               attach="x.example!eaa-audit.net!1!2.xml.gz", mid="<dm@test>"):
+    b = "BOUNDARY3"
+    att = (f"--{b}\r\nContent-Type: application/gzip; name=\"{attach}\"\r\nContent-Disposition: attachment; filename=\"{attach}\"\r\n"
+           f"Content-Transfer-Encoding: base64\r\n\r\nH4sIAAAAAAAAAAMAAAAAAAAAAAA=\r\n") if attach else ""
+    return (f"From: {frm}\r\nTo: hello@eaa-audit.net\r\nSubject: {subj}\r\nDate: Wed, 11 Nov 2026 03:00:00 +0000\r\n"
+            f"Message-ID: {mid}\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary={b}\r\n\r\n"
+            f"--{b}\r\nContent-Type: text/plain\r\n\r\n{text}\r\n{att}--{b}--\r\n").encode()
+
+
+def log_text(cfg):
+    return cfg.log_file.read_text(encoding="utf-8")
+
+
+def test_d1_dmarc_from_mailer_daemon_is_service_not_alert(env):
+    raws = [dmarc_from("MAILER-DAEMON@esa2.mx-relay.example", mid="<a@t>"),
+            dmarc_from("MAILER-DAEMON@tech-group.example", subj="Report Domain: eaa-audit.net Submitter: mail.tech-group.example Report-ID: 9", mid="<b@t>")]
+    rc, _ = go(env, raws)
+    assert rc == 0
+    assert not env.live_json.exists()                                   # ни одной тревоги
+    text = log_text(env)
+    assert text.count("служебное [INBOX UID") == 2 and "(DMARC)" in text and "недоставка не разобрана" not in text
+    assert "недоставок 0" in text.splitlines()[-1] and "служебных 2, живых 0" in text.splitlines()[-1]
+    assert not env.stop_xlsx.exists() and rows(env.sent_xlsx)[1][5] == "отправлено"
+
+
+@pytest.mark.parametrize("kw", [
+    dict(subj="Daily summary", attach=None),                                       # признак только в тексте
+    dict(subj="Report for eaa-audit.net", text="Nothing here"),                    # только вложение .xml.gz (+ слово report в теме)
+    dict(subj="rapport agrégé eaa-audit.net", text="Voir pièce jointe", attach=None),               # только тема
+], ids=["text", "attachment", "subject"])
+def test_d1_each_dmarc_sign_is_enough_before_daemon_check(env, kw):
+    go(env, [dmarc_from("MAILER-DAEMON@mail.example.org", **kw)])
+    assert not env.live_json.exists() and "служебное [INBOX UID 1] от mailer-daemon@mail.example.org" in log_text(env)
+
+
+def test_d1_real_delivery_report_stays_dsn(env):
+    go(env, [dsn("contact@dead-shop.example")])
+    assert "нерабочий" in rows(env.sent_xlsx)[1][5] and "служебное" not in log_text(env)
+
+
+def promo(frm="Wine Shop <bonjour@slip-shop.example>", extra="List-Unsubscribe: <mailto:unsub@x.example>\r\n",
+          subj="Vous risquez d'y prendre goût 😉"):
+    return mime(frm, subj, "https://www.slip-shop.example/pages/15-ans\r\nhttps://www.slip-shop.example/products/abonnement", extra=extra)
+
+
+@pytest.mark.parametrize("extra", ["List-Unsubscribe: <mailto:unsub@x.example>\r\n", "Precedence: bulk\r\n"],
+                         ids=["list-unsubscribe", "precedence-bulk"])
+def test_d2_store_newsletter_is_service_not_live(env, extra):
+    go(env, [promo(extra=extra)])
+    assert not env.live_json.exists()
+    assert "служебное [INBOX UID 1] от bonjour@slip-shop.example" in log_text(env) and "служебных 1, живых 0" in log_text(env)
+
+
+@pytest.mark.parametrize("extra,subj", [
+    ("List-Unsubscribe: <mailto:u@x.example>\r\nIn-Reply-To: <our@eaa-audit.net>\r\n", "Accessibility check of Slip Shop"),
+    ("List-Unsubscribe: <mailto:u@x.example>\r\nReferences: <our@eaa-audit.net>\r\n", "Accessibility check of Slip Shop"),
+    ("Precedence: bulk\r\n", "Re: Accessibility check of Slip Shop"),
+    ("Precedence: bulk\r\n", "TR: Accessibility check of Slip Shop"),
+], ids=["in-reply-to", "references", "Re", "TR"])
+def test_d2_reply_to_us_from_store_stays_live_even_with_bulk_headers(env, extra, subj):
+    go(env, [promo(extra=extra, subj=subj)])
+    assert len(live_items(env)) == 1 and live_items(env)[0]["alert"] is True
+
+
+def test_d2_human_letter_without_bulk_signs_is_live(env):
+    m = mime("Marie <marie@slip-shop.example>", "Accessibilité de Slip Shop : 19 éléments à corriger",
+             "Bonjour, merci de penser à nous. Je fais suivre votre dossier auprès du service concerné qui s’occupera de vous recontacter.")
+    go(env, [m])
+    assert len(live_items(env)) == 1
+
+
+def test_d2_non_store_bulk_is_service_even_with_in_reply_to(env):
+    go(env, [mime("News <news@other.example>", "Re: weekly", "hello",
+                  extra="List-Unsubscribe: <mailto:u@o.example>\r\nIn-Reply-To: <x@y>\r\n")])
+    assert not env.live_json.exists()
+
+
+def hard_case(env, status="5.0.0", diag="smtp; 550 No Such User Here", action="failed", **kw):
+    rc, _ = go(env, [dsn("contact@dead-shop.example", status=status, action=action, diag=diag, **kw)])
+    assert rc == 0
+    return rows(env.sent_xlsx)[1][5], (rows(env.stop_xlsx) if env.stop_xlsx.exists() else [])
+
+
+@pytest.mark.parametrize("code", ["550", "551", "553"])
+def test_d3_status_500_with_smtp_code_is_permanent(env, code):
+    cell, stop = hard_case(env, diag=f"smtp; {code} No Such User Here")
+    assert "нерабочий" in cell and "недоставка временно/отказ" not in cell
+    assert [r[1] for r in stop[1:]] == ["contact@dead-shop.example"] and code in stop[1][2] and "5.0.0" in stop[1][2]
+
+
+def test_d3_office365_recipient_rejected_is_permanent(env):
+    cell, stop = hard_case(env, diag="smtp; 550 5.4.1 Recipient address rejected: Access denied. AS(201806281)")
+    assert "нерабочий" in cell and len(stop) == 2
+
+
+def test_d3_code_only_in_message_text_is_permanent(env):
+    cell, stop = hard_case(env, diag="", text="host said: 550 No Such User Here")
+    assert "нерабочий" in cell and len(stop) == 2 and "550" in stop[1][2]
+
+
+@pytest.mark.parametrize("status,action,diag,text", [
+    ("5.0.0", "failed", "smtp; 550 Message rejected as spam", "x"),               # код есть, но это блокировка
+    ("5.0.0", "failed", "smtp; 550 blocked by reputation list", "x"),
+    ("5.0.0", "failed", "smtp; mailbox unavailable", "Delivery problem, no code here"),   # кода нет
+    ("5.0.0", "failed", "smtp; 554 transaction failed", "x"),                       # другой код
+    ("5.0.0", "delayed", "smtp; 550 No Such User Here", "x"),                       # не failed
+    ("5.2.2", "failed", "smtp; 550 5.2.2 mailbox full", "x"),
+    ("5.7.1", "failed", "smtp; 550 5.7.1 relay denied", "x"),
+    ("4.4.1", "failed", "smtp; 550 No Such User Here", "x"),
+], ids=["spam", "reputation", "no-code", "554", "delayed", "5.2.2", "5.7.1", "4.4.1"])
+def test_d3_not_permanent_stays_soft(env, status, action, diag, text):
+    cell, stop = hard_case(env, status=status, action=action, diag=diag, text=text)
+    assert "недоставка временно/отказ" in cell and "нерабочий" not in cell and stop == []
+
+
+def test_replay_live_run_12_11(env):
+    """Перепрогон классификации по виду писем живого запуска 12.11 (15 писем; сети нет, письма синтетические по отчёту tester)."""
+    cfg = env
+    shops = [("Pharmacy Shop", "info@pharmacy-shop.example"), ("DIY Shop", "sales@diy-shop.example"), ("Slip Shop", "bonjour@slip-shop.example"),
+             ("Tech Shop", "support@tech-shop.example"), ("Wine Shop", "bonjour@wine-shop.example"), ("Lunch Shop", "support@lunch-shop.example")]
+    make_xlsx(cfg.sent_xlsx, shops)
+    subj = "Accessibilité de Slip Shop : 19 éléments à corriger"
+    auto = "Auto-Submitted: auto-replied\r\n"
+    raws = [
+        dsn("info@pharmacy-shop.example", status="5.0.0", diag="smtp; 550 No Such User Here"),
+        dsn("sales@diy-shop.example", status="5.0.0", diag="smtp; 550 5.4.1 Recipient address rejected: Access denied"),
+        mime("Slip Shop <bonjour@slip-shop.example>", subj, "Bonjour, accusé de réception.", extra=auto, mid="<s1@t>"),
+        mime("Tech Shop <support@tech-shop.example>", "Bonne réception de votre message", "Ceci est un message automatique.", extra=auto, mid="<l1@t>"),
+        mime("Wine Shop <bonjour@wine-shop.example>", "Votre demande a bien été reçue", "Merci.", extra=auto, mid="<p1@t>"),
+        mime("Lunch Shop <support@lunch-shop.example>", "Votre demande a bien été reçue chez Lunch Shop", "Merci.", extra=auto, mid="<m1@t>"),
+        mime("Slip Shop <bonjour@slip-shop.example>", subj,
+             "Bonjour, Merci de penser à nous, c’est vraiment sympa ! Je fais suivre votre dossier auprès du service concerné "
+             "qui s’occupera de vous recontacter.", mid="<s2@t>"),                                   # единственный живой ответ
+        dmarc_from("noreply-dmarc-support@google.com", mid="<d1@t>"),
+        dmarc_from("no-reply@eu-2.mimecastreport.com", mid="<d2@t>"),
+        dmarc_from("dmarcreport@microsoft.com", subj="[Preview] Report Domain: eaa-audit.net Submitter: enterprise.protection.outlook.com",
+                   mid="<d3@t>"),
+        dmarc_from("MAILER-DAEMON@esa2.mx-relay.example", mid="<d4@t>"),                       # Д1
+        dmarc_from("MAILER-DAEMON@tech-group.example", mid="<d5@t>"),                                   # Д1
+        promo(frm="Wine Shop <bonjour@wine-shop.example>"),                                    # Д2
+    ]
+    spam = [mime("indexhelper <domains@indexhelper.live>", "Submit eaa-audit.net to Search Engines", "SEO", mid="<sp@t>")]
+    rc, _ = go(cfg, raws, spam=spam)
+    assert rc == 0
+    last = log_text(cfg).strip().splitlines()[-1]
+    assert "новых 14, недоставок 2, автоответов 4, отписок 0, служебных 7, живых 1" in last, last
+    assert [i["store_domain"] for i in live_items(cfg)] == ["slip-shop.example"]
+    res = {r[0]: r[5] for r in rows(cfg.sent_xlsx)[1:]}
+    assert "нерабочий" in res["Pharmacy Shop"] and "нерабочий" in res["DIY Shop"]
+    assert [r[1] for r in rows(cfg.stop_xlsx)[1:]] == ["info@pharmacy-shop.example", "sales@diy-shop.example"]
+
+
+# ---------------------------------------------------------------- 12.11, по замечанию tester: файл тревог пересобирается
+
+SLIP_TEXT = ("Bonjour, Merci de penser à nous, c’est vraiment sympa ! Je fais suivre votre dossier auprès du service concerné "
+             "qui s’occupera de vous recontacter. Je vous souhaite une belle journée. Toujours disponible, toujours attentif, "
+             "même sans café. (Agent AI) On Mon, Nov 09 2026, at 07:11 PM, Slip Shop <bonjour@slip-shop.example> wrote: "
+             "> Bonjour hello, > > Message bien reçu 🫡 > Nous sommes en train d'examiner votre demande avec attention.")
+
+
+def entry(frm, subj, text, mid, note=None, store_domain=""):
+    e = {"time": "2026-11-10 00:00:16", "from": frm, "store_domain": store_domain or frm.split("@")[-1].strip(">"),
+         "subject": subj, "text": text, "message_id": mid, "webmail_hint": "https://privateemail.com/appsuite/ — x",
+         "alert": True, "folder": "INBOX"}
+    if note:
+        e["note"] = note
+    return e
+
+
+def state_12_11():
+    """Живой файл как его записал старый код 12.11 17:35: 4 записи, все alert=true."""
+    return [
+        entry("Slip Shop <bonjour@slip-shop.example>", "Accessibilité de Slip Shop : 19 éléments à corriger", SLIP_TEXT,
+              "<ticket.0001@gorgias.com>"),
+        entry("MAILER-DAEMON@esa2.mx-relay.example", "Report Domain: eaa-audit.net Submitter: esa2.mx-relay.example Report-ID: <rid-0001@esa2.mx-relay.example>",
+              "Find attached the DMARC Aggregate Report.", "rid-0001@esa2.mx-relay.example", note="недоставка не разобрана"),
+        entry("MAILER-DAEMON@tech-group.example", "Report Domain: eaa-audit.net Submitter: mail.tech-group.example Report-ID: <rid-0002@mail.tech-group.example>",
+              "Find attached the DMARC Aggregate Report.", "rid-0002@mail.tech-group.example", note="недоставка не разобрана"),
+        entry("Wine Shop <bonjour@wine-shop.example>", "Vous risquez d'y prendre goût 😉",
+              "https://www.wine-shop.example/pages/15-ans Chez Wine Shop, on déniche des vins [M'abonner](https://x)",
+              "<PROMO0001@klaviyomail.com>"),
+    ]
+
+
+def put_live(cfg, items):
+    cfg.live_json.parent.mkdir(parents=True, exist_ok=True)
+    cfg.live_json.write_text(json.dumps({"updated": "2026-11-12 17:35:57", "alert": True, "items": items}, ensure_ascii=False),
+                             encoding="utf-8")
+
+
+def test_rebuild_removes_false_alerts_on_run_without_new_mail(env):
+    put_live(env, state_12_11())
+    rc, _ = go(env, [])
+    assert rc == 0
+    d = json.loads(env.live_json.read_text(encoding="utf-8"))
+    assert [i["store_domain"] for i in d["items"]] == ["slip-shop.example"]          # DMARC ×2 и рассылка ушли
+    assert d["items"][0]["forwarded"] is True and d["items"][0]["alert"] is False
+    assert d["alert"] is False
+    text = log_text(env)
+    assert text.count("запись убрана из eaa_mail.json") == 3 and "klaviyo" not in text.lower()
+
+
+def test_rebuild_is_idempotent_and_keeps_human_alert(env):
+    items = state_12_11() + [entry("Jean <jean@live-shop.example>", "Re: Accessibility check of Live Shop",
+                                   "Bonjour, pouvez-vous m'envoyer un devis ?", "<j1@t>")]
+    put_live(env, items)
+    go(env, [])
+    first = env.live_json.read_text(encoding="utf-8")
+    d = json.loads(first)
+    assert [i["store_domain"] for i in d["items"]] == ["slip-shop.example", "live-shop.example"]
+    assert d["alert"] is True and d["items"][1]["alert"] is True and "forwarded" not in d["items"][1]
+    go(env, [])
+    assert env.live_json.read_text(encoding="utf-8") == first                         # второй запуск файл не меняет
+
+
+def test_rebuild_keeps_unparsed_delivery_report_alert(env):
+    go(env, [dsn("contact@dead-shop.example", parsed=False)])
+    go(env, [])
+    items = live_items(env)
+    assert len(items) == 1 and items[0]["alert"] is True and items[0]["note"] == "недоставка не разобрана"
+
+
+def test_rebuild_does_not_touch_missing_file(env):
+    go(env, [])
+    assert not env.live_json.exists()
+
+
+def test_rebuild_uses_saved_headers_of_new_entries(env):
+    go(env, [mime("Marie <marie@live-shop.example>", "Re: Accessibility check of Live Shop", "Merci, appelez-moi.",
+                  extra="In-Reply-To: <our@x>\r\nList-Unsubscribe: <mailto:u@x.example>\r\n")])
+    it = live_items(env)[0]
+    assert it["meta"]["headers"]["In-Reply-To"] == "<our@x>" and "List-Unsubscribe" in it["meta"]["headers"]
+    go(env, [])
+    assert len(live_items(env)) == 1                      # ответ с In-Reply-To остаётся живым и после перепроверки
+
+
+def test_forwarded_ai_agent_reply_is_stored_without_alert(env):
+    m = mime("Le Slip <bonjour@slip-shop.example>", "Accessibilité de Slip Shop : 19 éléments à corriger", SLIP_TEXT.split(" On Mon")[0])
+    go(env, [m])
+    it = live_items(env)[0]
+    assert it["forwarded"] is True and it["alert"] is False and json.loads(env.live_json.read_text(encoding="utf-8"))["alert"] is False
+
+
+@pytest.mark.parametrize("body", [
+    "Bonjour, merci pour votre rapport. Pouvez-vous m'envoyer un devis pour la correction ? Cordialement, Jean",
+    "Thanks, we will get back to you next week. Can you send a quote for the fixes?",
+    "Bonjour, je fais suivre à mon directeur. Appelez-moi demain au 06 00 00 00 00.",
+    "Merci, ça m'intéresse. Message bien reçu, on en parle jeudi.",
+], ids=["devis", "will-get-back-quote", "fais-suivre-appel", "intéresse"])
+def test_human_reply_raises_alert_not_forwarded(env, body):
+    go(env, [mime("Jean <jean@live-shop.example>", "Re: Accessibility check of Live Shop", body, extra="In-Reply-To: <o@x>\r\n")])
+    it = live_items(env)[0]
+    assert it["alert"] is True and "forwarded" not in it
+
+
+WEAK_BODIES = [
+    "Merci pour votre message. Je fais suivre à notre équipe.",
+    "Thank you, someone will get back to you soon.",
+    "Message bien reçu 🫡 Nous revenons vers vous très rapidement.",
+    "Hi, I've passed this to our web team, we will get back to you.",
+]
+WEAK_IDS = ["je-fais-suivre", "will-get-back", "message-bien-recu", "passed-to-web-team"]
+
+
+@pytest.mark.parametrize("body", WEAK_BODIES, ids=WEAK_IDS)
+def test_weak_forward_phrase_without_strong_sign_is_live_with_alert(env, body):
+    """ОДНО ПРАВИЛО: слабая фраза без признака машины — сомнение, значит живое с тревогой."""
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check of Live Shop", body)])
+    it = live_items(env)[0]
+    assert it["alert"] is True and "forwarded" not in it and it["note"] == "возможно передача в отдел"
+
+
+@pytest.mark.parametrize("extra", ["X-GORGIAS-TICKET-ID: 1\r\n", "X-Zendesk-From-Account-Id: 7\r\n"], ids=["gorgias-hdr", "zendesk-hdr"])
+@pytest.mark.parametrize("body", WEAK_BODIES, ids=WEAK_IDS)
+def test_weak_forward_phrase_with_support_desk_header_is_forwarded(env, body, extra):
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check of Live Shop", body, extra=extra)])
+    it = live_items(env)[0]
+    assert it["forwarded"] is True and it["alert"] is False
+    assert "передача в отдел, без тревоги [INBOX UID 1] от help@live-shop.example" in log_text(env)
+
+
+def test_weak_forward_phrase_with_support_desk_message_id_is_forwarded(env):
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", WEAK_BODIES[1], mid="<abc.123@shop.zendesk.com>")])
+    assert live_items(env)[0]["forwarded"] is True
+
+
+def test_ai_agent_signature_alone_is_forwarded(env):
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", "Bonjour, ticket créé. (Agent AI)")])
+    it = live_items(env)[0]
+    assert it["forwarded"] is True and it["alert"] is False
+
+
+@pytest.mark.parametrize("dom", ["sendgrid.net", "mandrillapp.com", "sparkpostmail.com", "mailjet.com", "brevo.com",
+                                 "sendinblue.com", "hubspotemail.net"])
+def test_operator_relay_message_id_is_not_bulk(env, dom):
+    go(env, [mime("Anna <anna@live-shop.example>", "Votre rapport", "Bonjour, je regarde votre rapport cette semaine.",
+                  mid=f"<x1.y2@{dom}>")])
+    it = live_items(env)
+    assert len(it) == 1 and it[0]["alert"] is True
+
+
+# ---------------------------------------------------------------- урок: перепроверка не понижает живое
+
+LONG_HUMAN = ("Bonjour, merci pour votre message, je fais suivre à notre équipe technique qui gère le site. " * 6
+              + "Mais dites-moi : combien coûte l'audit complet ?")        # вопрос после 500-го знака
+
+
+def live_with_alert_samples():
+    return {
+        "devis": mime("Jean <jean@live-shop.example>", "Re: Accessibility check of Live Shop", "Pouvez-vous m'envoyer un devis ?",
+                      mid="<s1@t>"),
+        "weak-phrase": mime("Anna <anna@live-shop.example>", "Re: Accessibility check", WEAK_BODIES[3], mid="<s2@t>"),
+        "long-question-after-500": mime("Paul <paul@live-shop.example>", "Re: Accessibility check", LONG_HUMAN, mid="<s3@t>"),
+        "store-bulk-about-us": mime("Marie <marie@slip-shop.example>", "Votre rapport", "J'ai lu votre audit d'accessibilité.",
+                                    extra="List-Unsubscribe: <mailto:u@x.example>\r\n", mid="<s4@t>"),
+        "dmarc-from-store": dmarc_from("Slip Shop <bonjour@slip-shop.example>", subj="Report for eaa-audit.net", text="Voir pièce jointe",
+                                       attach="report.zip", mid="<s5@t>"),
+        "maybe-autoreply": mime("Slip <bonjour@slip-shop.example>", "Re: Accessibility check",
+                                "Votre demande a bien été transmise à notre équipe.", mid="<s6@t>"),
+        "unparsed-dsn": dsn("contact@dead-shop.example", parsed=False),
+        "operator-relay": mime("Anna <anna@live-shop.example>", "Votre rapport", "Je regarde.", mid="<x@sendgrid.net>"),
+    }
+
+
+@pytest.mark.parametrize("name", list(live_with_alert_samples()))
+@pytest.mark.parametrize("drop_xlsx", [False, True], ids=["stores", "no-stores"])
+def test_lesson_live_alert_survives_second_empty_run(env, name, drop_xlsx):
+    go(env, [live_with_alert_samples()[name]])
+    first = live_items(env)
+    assert len(first) == 1 and first[0]["alert"] is True, first
+    if drop_xlsx:
+        env.sent_xlsx.unlink()
+    go(env, [])                                                    # второй, пустой запуск: перепроверка файла
+    again = live_items(env)
+    assert len(again) == 1 and again[0]["alert"] is True and "forwarded" not in again[0]
+    assert json.loads(env.live_json.read_text(encoding="utf-8"))["alert"] is True
+
+
+def test_meta_keeps_full_text_before_quote(env):
+    go(env, [mime("Paul <paul@live-shop.example>", "Re: Accessibility check", LONG_HUMAN + "\r\n\r\nLe lun. 9 nov. 2026, X a écrit :\r\n> old")])
+    it = live_items(env)[0]
+    assert len(it["text"]) <= 500 and it["meta"]["head"].endswith("combien coûte l'audit complet ?")
+    assert it["meta"]["verdict"] == "live" and "a écrit" not in it["meta"]["head"]
+
+
+def test_empty_store_list_skips_recheck_with_log(env):
+    put_live(env, state_12_11())                                 # старые записи, в том числе 2 DMARC и рассылка
+    env.sent_xlsx.unlink()
+    go(env, [])
+    assert len(live_items(env)) == 4
+    assert "перепроверка eaa_mail.json пропущена: список магазинов пуст" in log_text(env)
+
+
+def test_legacy_entry_is_not_dropped_without_machine_sign(env):
+    put_live(env, [entry("Bob <bob@agency.example>", "Partenariat", "Bonjour, nous proposons du référencement SEO et des backlinks.",
+                         "<seo@agency.example>")])
+    go(env, [])
+    assert len(live_items(env)) == 1 and live_items(env)[0]["alert"] is True
+
+
+def test_legacy_downgrades_are_logged_with_sender_and_subject(env):
+    put_live(env, state_12_11())
+    go(env, [])
+    text = log_text(env)
+    assert "запись убрана из eaa_mail.json (отчёт DMARC): от MAILER-DAEMON@tech-group.example: «Report Domain" in text
+    assert "запись убрана из eaa_mail.json (рассылка (Message-ID сервера рассылок)): от Wine Shop" in text
+    assert "тревога снята, передача в отдел (подпись ИИ-агента / система поддержки): от Slip Shop" in text
+
+
+# XML задачи Планировщика проверяется в test_install_task.py (шаблон + подстановка).
+
+
+# ---------------------------------------------------------------- 12.11, reviewer, круг 1: Б1, Б2, В3, В4
+
+FIX16 = Path(__file__).resolve().parent / "test_data" / "uid16_support_reply.eml"
+SLIP_SUBJ = "Accessibilité de Slip Shop : 19 éléments à corriger"
+
+
+def fix16_bytes() -> bytes:
+    """Файл письма с CRLF независимо от того, как git переписал концы строк при checkout."""
+    return FIX16.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+
+
+def real16(drop=(), add=""):
+    """Настоящие заголовки INBOX UID 16 (ответ магазина через Gorgias, 09.11; домен и имя заменены)."""
+    head, body = fix16_bytes().split(b"\r\n\r\n", 1)
+    keep = [ln for ln in head.split(b"\r\n") if not any(ln.lower().startswith(d.lower().encode() + b":") for d in drop)]
+    return b"\r\n".join(keep) + add.encode() + b"\r\n\r\n" + body
+
+
+def slip_xlsx(env):
+    make_xlsx(env.sent_xlsx, subjects={"Slip Shop": SLIP_SUBJ})
+
+
+def test_b1_fixture_has_the_real_uid16_headers():
+    h = fix16_bytes().split(b"\r\n\r\n", 1)[0].decode("utf-8")
+    for name in ("In-Reply-To:", "References:", "X-GORGIAS-TICKET-ID:", "Reply-To:", "@gorgias.com>"):
+        assert name in h
+    assert "List-Unsubscribe" not in h and "Precedence" not in h
+    # все адреса в образце — выдуманные .example, кроме нашего ящика и домена системы поддержки
+    doms = {a.rsplit("@", 1)[1].rstrip(">").lower() for a in re.findall(r"[\w.+=-]+@[\w.-]+", h)}
+    assert doms <= {"slip-shop.example", "em1.slip-shop.example", "eaa-audit.net", "gorgias.com", "mailcore.example"}, doms
+
+
+def test_b1_real_uid16_reply_is_kept_as_forwarded(env):
+    slip_xlsx(env)
+    go(env, [real16()])
+    it = live_items(env)
+    assert len(it) == 1 and it[0]["forwarded"] is True and it[0]["store_domain"] == "slip-shop.example"
+
+
+def test_b1_uid16_without_reply_headers_but_with_bulk_is_kept_by_our_subject(env):
+    slip_xlsx(env)
+    go(env, [real16(drop=("In-Reply-To", "References"), add="\r\nList-Unsubscribe: <mailto:u@x.example>")])
+    assert len(live_items(env)) == 1 and "служебное" not in log_text(env)
+
+
+@pytest.mark.parametrize("subj", ["[#4521] Re: Votre demande", "Fwd: Votre demande", "FW: Votre demande", "WG: Ihre Anfrage",
+                                  "TR: Votre demande"])
+def test_b1_reply_prefixes_with_bulk_headers_are_kept(env, subj):
+    slip_xlsx(env)
+    go(env, [real16(drop=("In-Reply-To", "References", "Subject"), add=f"\r\nSubject: {subj}\r\nPrecedence: bulk")])
+    assert len(live_items(env)) == 1
+
+
+def test_b1_store_bulk_human_without_re_mentioning_us_is_live_with_note(env):
+    m = mime("Marie <marie@slip-shop.example>", "Votre rapport", "Bonjour, j'ai lu votre audit d'accessibilité. Appelez-moi demain.",
+             extra="List-Unsubscribe: <mailto:u@x.example>\r\n")
+    go(env, [m])
+    it = live_items(env)
+    assert len(it) == 1 and it[0]["alert"] is True and it[0]["note"] == "возможно рассылка"
+
+
+def test_b1_store_bulk_without_anything_about_us_stays_service(env):
+    go(env, [promo()])
+    assert not env.live_json.exists() and "служебное [INBOX UID 1]" in log_text(env)
+
+
+NO_SUCH_USER_TEXT = ("Delivery to the following recipient failed permanently: contact@dead-shop.example "
+                "Technical details of permanent failure: 550 No Such User Here")
+O365_REJECTED_DIAG = ("smtp; 550 5.4.1 Recipient address rejected: Access denied. For more information see "
+                "https://aka.ms/EXOSmtpErrors [DB1PEPF000509E5.eurprd03.prod.outlook.com 2026-11-09T19:02:57.233Z 08DF3BEEB577C59E]")
+
+
+@pytest.mark.parametrize("diag,text", [
+    ("smtp; 550 No Such User Here", NO_SUCH_USER_TEXT),
+    (O365_REJECTED_DIAG, NO_SUCH_USER_TEXT.replace("550 No Such User Here", O365_REJECTED_DIAG[6:])),
+], ids=["no-such-user", "o365-recipient-rejected"])
+def test_b2_real_live_cases_stay_hard_and_are_logged(env, diag, text):
+    cell, stop = hard_case(env, diag=diag, text=text)
+    assert "нерабочий" in cell and "недоставка временно/отказ" not in cell and len(stop) == 2
+    assert "недоставка жёсткая [INBOX UID 1]" in log_text(env) and "contact@dead-shop.example -> Не_писать" in log_text(env)
+
+
+def test_b2_block_word_at_150th_char_is_soft(env):
+    diag = "smtp; 550 No such user here. "
+    diag += "x" * (150 - len(diag)) + " blocked by local policy"
+    assert diag.index("blocked") >= 150
+    cell, stop = hard_case(env, diag=diag, text="Delivery failed")
+    assert "недоставка временно/отказ" in cell and "нерабочий" not in cell and stop == []
+
+
+@pytest.mark.parametrize("diag", [
+    "smtp; 550 Sender verify failed",
+    "smtp; 550 Your IP 1.2.3.4 is listed in black list",
+    "smtp; 550 Message rejected by Anti-Spoofing policy",
+    "smtp; 550 Access denied",
+    "smtp; 550 Mailbox unavailable",
+    "smtp; 553 Requested action not taken",
+], ids=["sender-verify", "black-list", "anti-spoofing", "access-denied", "mailbox-unavailable", "553-no-phrase"])
+def test_b2_other_550_is_soft(env, diag):
+    cell, stop = hard_case(env, diag=diag, text="Delivery failed")
+    assert "недоставка временно/отказ" in cell and "нерабочий" not in cell and stop == []
+
+
+def test_b2_sender_status_518_is_not_dead_address(env):
+    cell, stop = hard_case(env, status="5.1.8", diag="smtp; 550 5.1.8 Sender address rejected", text="Delivery failed")
+    assert "нерабочий" not in cell and stop == []
+
+
+@pytest.mark.parametrize("diag", ["smtp; 550 user unknown", "smtp; 550 Adresse introuvable", "smtp; 551 l'adresse n'existe pas",
+                                  "smtp; 550 mailbox not found", "smtp; 553 invalid recipient"])
+def test_b2_white_list_phrases_are_hard(env, diag):
+    cell, stop = hard_case(env, diag=diag, text="Delivery failed")
+    assert "нерабочий" in cell and len(stop) == 2
+
+
+def test_b2_dead_mark_replaces_soft_mark_in_cell(env):
+    raws = [dsn("contact@dead-shop.example", status="5.0.0", diag="smtp; 550 Access denied", text="Delivery failed"),
+            dsn("contact@dead-shop.example", status="5.0.0", diag="smtp; 550 No Such User Here")]
+    go(env, raws[:1])                                                           # сначала мягкая метка
+    assert "недоставка временно/отказ" in rows(env.sent_xlsx)[1][5]
+    go(env, raws)                                                               # потом жёсткая (UID 2)
+    cell = rows(env.sent_xlsx)[1][5]
+    assert "нерабочий" in cell and "недоставка временно/отказ" not in cell
+
+
+def test_v3_store_newsletter_with_unsubscribe_first_line_is_service_not_stop(env):
+    m = mime("Slip Shop <news@slip-shop.example>", "Nos nouveautés de novembre",
+             "Se désinscrire | Voir en ligne\r\nDécouvrez la nouvelle collection.", extra="List-Unsubscribe: <mailto:u@x.example>\r\n")
+    go(env, [m])
+    assert not env.stop_xlsx.exists() and not env.live_json.exists()
+    assert "служебное [INBOX UID 1] от news@slip-shop.example" in log_text(env)
+
+
+def test_v4_client_asks_for_rapport_agrege_is_live(env):
+    slip_xlsx(env)
+    m = mime("Marie <marie@slip-shop.example>", "Re: " + SLIP_SUBJ,
+             "Bonjour, pouvez-vous nous envoyer le rapport agrégé de l'audit ?", extra="In-Reply-To: <o@x>\r\n")
+    go(env, [m])
+    it = live_items(env)
+    assert len(it) == 1 and it[0]["alert"] is True and it[0]["note"] == "возможно отчёт DMARC"
+
+
+def test_v4_store_report_zip_is_live_not_silent(env):
+    go(env, [dmarc_from("Slip Shop <bonjour@slip-shop.example>", subj="Report for eaa-audit.net", text="Voir pièce jointe",
+                        attach="report.zip")])
+    it = live_items(env)
+    assert len(it) == 1 and it[0]["note"] == "возможно отчёт DMARC"
+
+
+# ---------------------------------------------------------------- 13.11, reviewer: признак машины только однозначный
+
+AGENT_QUOTE = ("Bonjour, merci de penser à nous ! Je fais suivre votre dossier auprès du service concerné. "
+               "Toujours disponible, même sans café. (Agent AI)")
+
+
+def html_mail(frm, subj, html, extra="", mid=None):
+    return mime(frm, subj, html, extra=extra, mid=mid, ctype="text/html; charset=utf-8")
+
+
+@pytest.mark.parametrize("own", ["Merci, appelez-moi demain matin.", "Merci, je regarde ça cette semaine avec mon équipe."],
+                         ids=["with-human-word", "neutral"])
+def test_r4_html_human_reply_quoting_agent_ai_raises_alert(env, own):
+    html = (f"<div dir='ltr'><p>{own}</p><p>Marie</p></div><div class='gmail_quote'><div>Le lun. 9 nov. 2026, Slip Shop "
+            f"&lt;bonjour@slip-shop.example&gt; a écrit :</div><blockquote>{AGENT_QUOTE}</blockquote></div>")
+    go(env, [html_mail("Marie <marie@slip-shop.example>", "Re: Accessibility check", html,
+                       extra="X-GORGIAS-TICKET-ID: 5\r\nIn-Reply-To: <o@x>\r\n")])
+    it = live_items(env)[0]
+    assert it["alert"] is True and "forwarded" not in it
+
+
+def test_r4_agent_ai_not_at_the_end_is_not_a_machine_sign(env):
+    body = "(Agent AI) m'a répondu hier. " + "Je reprends le sujet moi-même avec notre développeur web, " * 5 + "à bientôt."
+    assert len(body) - body.index("(Agent AI)") > 200
+    go(env, [mime("Paul <paul@live-shop.example>", "Re: Accessibility check", body)])
+    assert live_items(env)[0]["alert"] is True
+
+
+def test_r4_weak_phrase_gorgias_and_question_at_900th_char_raises_alert(env):
+    body = "Bonjour, je fais suivre votre dossier au service concerné. " + "Nous regardons le rapport en détail. " * 23
+    body += "Pouvez-vous nous dire combien coûte l'audit complet ?"
+    assert body.index("?") >= 900
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", body, extra="X-GORGIAS-TICKET-ID: 7\r\n")])
+    it = live_items(env)[0]
+    assert it["alert"] is True and "forwarded" not in it
+
+
+def test_r4_ai_agent_signature_at_the_end_still_forwarded(env):
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", AGENT_QUOTE)])
+    assert live_items(env)[0]["forwarded"] is True
+
+
+@pytest.mark.parametrize("extra,subj", [
+    ("List-Unsubscribe: <mailto:u@x.example>\r\nIn-Reply-To: <o@x>\r\n", "Votre rapport"),
+    ("List-Unsubscribe: <mailto:u@x.example>\r\nReferences: <o@x>\r\n", "Votre rapport"),
+    ("Precedence: bulk\r\n", "Re: Accessibility check"),
+    ("", "RE: backlinks et SEO pour votre site"),
+], ids=["in-reply-to", "references", "re-bulk", "re-seo-words"])
+def test_r4_empty_store_list_reply_is_live_not_service(env, extra, subj):
+    env.sent_xlsx.unlink()
+    go(env, [mime("Anna <anna@unknown-shop.example>", subj, "Bonjour, je regarde votre rapport.", extra=extra)])
+    it = live_items(env)
+    assert len(it) == 1 and it[0]["alert"] is True
+
+
+def test_r4_empty_store_list_reply_in_spam_folder_is_live(env):
+    env.sent_xlsx.unlink()
+    go(env, [], spam=[mime("Anna <anna@unknown-shop.example>", "Votre rapport", "Bonjour.", extra="References: <o@x>\r\n")])
+    assert len(live_items(env)) == 1
+
+
+def test_r4_empty_store_list_newsletter_without_reply_sign_stays_service(env):
+    env.sent_xlsx.unlink()
+    go(env, [promo(frm="News <news@unknown-shop.example>")])
+    assert not env.live_json.exists()
