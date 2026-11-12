@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exemple de rapport — EAA Audit</title>
+<link rel="canonical" href="https://eaa-audit.net/fr/exemple.html">
+<link rel="alternate" hreflang="en" href="https://eaa-audit.net/sample.html">
+<link rel="alternate" hreflang="fr" href="https://eaa-audit.net/fr/exemple.html">
+<link rel="alternate" hreflang="x-default" href="https://eaa-audit.net/sample.html">
+<meta name="description" content="Exemple réel et anonymisé d'un rapport EAA Audit : contrôle automatisé de 7 pages d'une boutique en ligne selon WCAG 2.1 A et AA (PDF, 11 pages, en anglais).">
+<style>
+  :root{--bg:#ffffff;--fg:#111827;--muted:#4b5563;--accent:#1d4ed8;--accent-fg:#ffffff;--line:#e5e7eb;--soft:#f3f4f6}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--fg);background:var(--bg);line-height:1.55}
+  a{color:var(--accent)} a:focus-visible,button:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
+  .skip{position:absolute;left:-999px;top:8px;background:var(--accent);color:var(--accent-fg);padding:8px 12px;border-radius:6px}
+  .skip:focus{left:8px}
+  header,main,footer{max-width:960px;margin:0 auto;padding:0 20px}
+  header{display:flex;gap:8px 18px;justify-content:space-between;align-items:center;min-height:56px}
+  .brand{font-weight:700;font-size:18px;text-decoration:none;color:var(--fg)}
+  nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0 20px}
+  nav a{text-decoration:none;color:var(--muted);font-weight:600;font-size:16px;display:inline-block;padding:12px 0}
+  nav .hide-m{display:none}
+  .lang{display:flex;gap:4px}
+  .lang a{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 6px;border-radius:8px;text-decoration:none;font-weight:600;color:var(--muted)}
+  .lang a[aria-current]{color:var(--fg);background:var(--soft)}
+  .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .hero{display:grid;gap:16px;padding:8px 0 24px}
+  .hero .txt{display:grid;gap:12px;align-content:start}
+  h1{font-size:30px;line-height:1.15;margin:0}
+  .lead{font-size:16px;color:var(--muted);margin:0}
+  .hero .btn{display:flex;align-items:center;justify-content:center;height:52px;margin:0;padding:0 22px;font-size:18px}
+  .price-link{font-size:16px;font-weight:600;display:inline-block;padding:4px 0}
+  .hero figure{margin:0}
+  .hero figure a{display:block;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(17,24,39,.10)}
+  .sample figure{margin:16px 0;max-width:560px}
+  .sample figure img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:12px}
+  .hero figure img{display:block;width:100%;height:auto}
+  .who{margin:0;padding:12px 0;border-top:1px solid var(--line);font-size:15px;color:var(--muted)}
+  figcaption{font-size:14px;color:var(--muted);margin-top:8px}
+  .click{display:none}
+  .nw{white-space:nowrap}
+  @media (hover:hover) and (pointer:fine){.tap{display:none}.click{display:inline}}
+  @media (min-width:900px){
+    header{min-height:72px} nav .hide-m{display:list-item}
+    .hero{grid-template-columns:1fr 440px;gap:40px;align-items:center;padding:24px 0 32px}
+    h1{font-size:44px} .lead{font-size:19px;max-width:560px} .hero .txt{gap:20px}
+    .hero .btn{display:inline-flex;width:max-content;padding:0 28px} .price-link{font-size:17px}
+  }
+  .btn{display:inline-block;margin-bottom:8px;background:var(--accent);color:var(--accent-fg);text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:600}
+  .btn.secondary{background:var(--soft);color:var(--fg)}
+  .actions{display:flex;flex-wrap:wrap;column-gap:12px}
+  section{padding:32px 0;border-top:1px solid var(--line)}
+  h2{font-size:26px;margin:0 0 16px}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))}
+  .card{border:1px solid var(--line);border-radius:14px;padding:20px;background:#fff}
+  .card h3{margin:0 0 8px;font-size:18px}
+  .price{font-size:30px;font-weight:700;margin:6px 0}
+  .card ul{padding-left:18px;margin:8px 0 0}
+  .fact{background:var(--soft);border-radius:14px;padding:18px 20px}
+  ol.steps{padding-left:20px} ol.steps li{margin-bottom:8px}
+  footer{padding:32px 20px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
+  @media (prefers-reduced-motion:no-preference){a,button{transition:opacity .15s}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu principal</a>
+<header>
+  <a class="brand" href="./">EAA Audit</a>
+  <nav aria-label="Navigation principale">
+    <ul>
+      <li><a href="./#pricing">Tarifs</a></li>
+      <li class="hide-m"><a href="./#contact">Contact</a></li>
+    </ul>
+  </nav>
+  <nav class="lang" aria-label="Langue">
+    <a href="../sample.html" lang="en" hreflang="en">EN<span class="vh"> — English</span></a>
+    <a href="exemple.html" lang="fr" hreflang="fr" aria-current="page">FR<span class="vh"> — Français</span></a>
+  </nav>
+</header>
+
+<main id="main" class="sample">
+  <section aria-labelledby="sample-title" style="border-top:0">
+    <h1 id="sample-title">Exemple de rapport</h1>
+    <p>Voici un vrai contrôle de 7 pages d'une boutique en ligne. La boutique ne l'a pas commandé et n'a pas été contactée ; son identité a été retirée.</p>
+    <p>Le rapport est en anglais (PDF, 11 pages). Vous y trouverez : les cinq problèmes les plus importants, la liste «&nbsp;À corriger en premier&nbsp;», le résultat pour chacun des 50 critères WCAG 2.1 A et AA et les vérifications manuelles restantes.</p>
+    <figure>
+      <img src="../samples/report-page2.png" width="1070" height="920" alt="Page 2 de notre exemple de rapport : liste «&nbsp;À corriger en premier&nbsp;», limites du contrôle et les cinq problèmes les plus importants">
+      <figcaption>Page 2 de notre exemple de rapport (contrôle réel, anonymisé).</figcaption>
+    </figure>
+    <p><a class="btn" href="../samples/EAA_snapshot_example-store.pdf" hreflang="en" type="application/pdf">Ouvrir l'exemple (PDF, 11 pages, en anglais)</a></p>
+    <p>Le PDF n'est pas balisé pour les lecteurs d'écran ; écrivez-nous pour en obtenir une version lisible.</p>
+  </section>
+
+  <section aria-labelledby="about-title">
+    <h2 id="about-title">Qui sommes-nous</h2>
+    <p>EAA Audit est un petit service indépendant basé à Astana, au Kazakhstan. Nous n'avons aucune certification en accessibilité et pas encore d'avis clients. Nous utilisons un service d'IA pour aider à préparer les rapports ; la <a href="../privacy.html" hreflang="en">politique de confidentialité (en anglais)</a> le nomme.</p>
+    <p><a href="./#contact">Recevoir un aperçu gratuit</a> · <a href="./#pricing">Tarifs</a></p>
+  </section>
+</main>
+
+<footer>
+  <p>EAA Audit. Contrôles automatisés et scriptés selon WCAG 2.1 A et AA. Les tests automatisés ne détectent qu'une partie des problèmes ; les rapports sont des évaluations techniques, ni une preuve de conformité ni un avis juridique.</p>
+  <p><a href="../terms.html" hreflang="en">Conditions de service (en anglais)</a> · <a href="../privacy.html" hreflang="en">Politique de confidentialité (en anglais)</a> · <a href="../accessibility.html" hreflang="en">Déclaration d'accessibilité (en anglais)</a></p>
+</footer>
+</body>
+</html>
