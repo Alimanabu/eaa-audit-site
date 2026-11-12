@@ -58,7 +58,7 @@
   .ledger div{padding:12px 8px 10px;border-right:1px solid var(--line);min-width:0}
   .ledger div:last-child{border-right:0}
   .ledger b{display:block;font-family:Georgia,serif;font-weight:400;font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
-  .ledger span{display:block;font-size:15px;color:var(--muted);line-height:1.3;margin-top:4px}
+  .ledger div>span{display:block;font-size:15px;color:var(--muted);line-height:1.3;margin-top:4px}
   .ledger .r b{color:var(--bad)}
   .sheet-fig figcaption{font-size:15px;color:var(--muted);margin-top:18px}
   /* sections */
@@ -106,6 +106,7 @@
     .js .rule.in{transform:none}
     .js .rv{opacity:0;transform:translateY(18px);transition:opacity .8s ease,transform .8s ease}
     .js .rv.in{opacity:1;transform:none}
+    .js .rv:focus-within{opacity:1;transform:none;transition:none}
     .js .d1{transition-delay:.15s}
     .js .now{transition:none}
   }
@@ -172,9 +173,9 @@
           <li><span class="mark m3">Icon links: add a text name</span> (serious, level A; 3 elements, 2 of 7 pages)</li>
         </ol>
         <div class="ledger">
-          <div class="r"><b data-to="25">25</b><span>occurrences on 7 pages</span></div>
-          <div><b data-to="20">20</b><span>distinct elements</span></div>
-          <div class="r"><b data-to="4">4</b><span>WCAG criteria failed</span></div>
+          <div class="r"><b><span class="vh">25</span><span aria-hidden="true" data-to="25">25</span></b><span>occurrences on 7 pages</span></div>
+          <div><b><span class="vh">20</span><span aria-hidden="true" data-to="20">20</span></b><span>distinct elements</span></div>
+          <div class="r"><b><span class="vh">4</span><span aria-hidden="true" data-to="4">4</span></b><span>WCAG criteria failed</span></div>
         </div>
       </div>
       <figcaption>Page 2 de notre exemple de rapport (contrôle réel, anonymisé). Voir l'<a href="exemple.html">exemple de rapport</a> (PDF, 11 pages, en anglais).</figcaption>
@@ -187,9 +188,9 @@
     <h2 id="findings-title" class="rv">Ce qu'un contrôle de 7 pages a trouvé</h2>
     <div class="rows">
       <div class="row rv"><span class="num">1,72:1</span><p><strong>Contraste des anciens prix barrés</strong> sur la page de recherche : #c5c5c5 sur blanc. Le ratio exigé est de 4,5:1.</p></div>
-      <div class="row rv"><span class="num" data-to="16">16</span><p><strong>Éléments au texte trop pâle par rapport au fond,</strong> sur 3 des 7 pages. Un élément répété sur plusieurs pages n'est compté qu'une fois : vous voyez où une seule correction de gabarit suffit.</p></div>
-      <div class="row rv"><span class="num" data-to="43">43</span><p><strong>Les éléments que les règles n'ont pas pu trancher</strong> sont listés pour examen, pas comptés comme des échecs.</p></div>
-      <div class="row rv"><span class="num"><span data-to="22">22</span>/50</span><p><strong>Dans notre exemple de rapport, les règles ont touché 22 des 50 critères (44 %),</strong> la plupart seulement en partie.</p></div>
+      <div class="row rv"><span class="num"><span class="vh">16</span><span aria-hidden="true" data-to="16">16</span></span><p><strong>Éléments au texte trop pâle par rapport au fond,</strong> sur 3 des 7 pages. Un élément répété sur plusieurs pages n'est compté qu'une fois : vous voyez où une seule correction de gabarit suffit.</p></div>
+      <div class="row rv"><span class="num"><span class="vh">43</span><span aria-hidden="true" data-to="43">43</span></span><p><strong>Les éléments que les règles n'ont pas pu trancher</strong> sont listés pour examen, pas comptés comme des échecs.</p></div>
+      <div class="row rv"><span class="num"><span class="vh">22</span><span aria-hidden="true" data-to="22">22</span>/50</span><p><strong>Dans notre exemple de rapport, les règles ont touché 22 des 50 critères (44 %),</strong> la plupart seulement en partie.</p></div>
     </div>
     <p class="rv" style="margin:22px 0 0"><a href="exemple.html">Exemple de rapport</a> (PDF, 11 pages, en anglais)</p>
   </section>
