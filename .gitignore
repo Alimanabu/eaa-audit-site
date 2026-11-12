@@ -2,3 +2,4 @@ tool/out/
 __pycache__/
 state/
 logs/
+deploy/out/
