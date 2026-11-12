@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EAA Audit — contrôles automatisés d'accessibilité WCAG 2.1 pour les boutiques en ligne européennes</title>
+<link rel="canonical" href="https://eaa-audit.net/fr/">
+<link rel="alternate" hreflang="en" href="https://eaa-audit.net/">
+<link rel="alternate" hreflang="fr" href="https://eaa-audit.net/fr/">
+<link rel="alternate" hreflang="x-default" href="https://eaa-audit.net/">
+<meta name="description" content="Contrôles automatisés d'accessibilité WCAG 2.1 A et AA pour les boutiques en ligne, dans le cadre de l'European Accessibility Act. Aperçu gratuit sur 4 pages, audit automatisé jusqu'à 10 pages. Ce qui n'est pas testé est indiqué clairement.">
+<style>
+  :root{--bg:#ffffff;--fg:#111827;--muted:#4b5563;--accent:#1d4ed8;--accent-fg:#ffffff;--line:#e5e7eb;--soft:#f3f4f6}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--fg);background:var(--bg);line-height:1.55}
+  a{color:var(--accent)} a:focus-visible,button:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
+  .skip{position:absolute;left:-999px;top:8px;background:var(--accent);color:var(--accent-fg);padding:8px 12px;border-radius:6px}
+  .skip:focus{left:8px}
+  header,main,footer{max-width:960px;margin:0 auto;padding:0 20px}
+  header{display:flex;gap:8px 18px;justify-content:space-between;align-items:center;min-height:56px}
+  .brand{font-weight:700;font-size:18px;text-decoration:none;color:var(--fg)}
+  nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0 20px}
+  nav a{text-decoration:none;color:var(--muted);font-weight:600;font-size:16px;display:inline-block;padding:12px 0}
+  nav .hide-m{display:none}
+  .lang{display:flex;gap:4px}
+  .lang a{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 6px;border-radius:8px;text-decoration:none;font-weight:600;color:var(--muted)}
+  .lang a[aria-current]{color:var(--fg);background:var(--soft)}
+  .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .hero{display:grid;gap:16px;padding:8px 0 24px}
+  .hero .txt{display:grid;gap:12px;align-content:start}
+  h1{font-size:30px;line-height:1.15;margin:0}
+  .lead{font-size:16px;color:var(--muted);margin:0}
+  .hero .btn{display:flex;align-items:center;justify-content:center;height:52px;margin:0;padding:0 22px;font-size:18px}
+  .price-link{font-size:16px;font-weight:600;display:inline-block;padding:4px 0}
+  .hero figure{margin:0}
+  .hero figure a{display:block;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(17,24,39,.10)}
+  .sample figure{margin:16px 0;max-width:560px}
+  .sample figure img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:12px}
+  .hero figure img{display:block;width:100%;height:auto}
+  .who{margin:0;padding:12px 0;border-top:1px solid var(--line);font-size:15px;color:var(--muted)}
+  figcaption{font-size:14px;color:var(--muted);margin-top:8px}
+  .click{display:none}
+  .nw{white-space:nowrap}
+  @media (hover:hover) and (pointer:fine){.tap{display:none}.click{display:inline}}
+  @media (min-width:900px){
+    header{min-height:72px} nav .hide-m{display:list-item}
+    .hero{grid-template-columns:1fr 440px;gap:40px;align-items:center;padding:24px 0 32px}
+    h1{font-size:44px} .lead{font-size:19px;max-width:560px} .hero .txt{gap:20px}
+    .hero .btn{display:inline-flex;width:max-content;padding:0 28px} .price-link{font-size:17px}
+  }
+  .btn{display:inline-block;margin-bottom:8px;background:var(--accent);color:var(--accent-fg);text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:600}
+  .btn.secondary{background:var(--soft);color:var(--fg)}
+  .actions{display:flex;flex-wrap:wrap;column-gap:12px}
+  section{padding:32px 0;border-top:1px solid var(--line)}
+  h2{font-size:26px;margin:0 0 16px}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))}
+  .card{border:1px solid var(--line);border-radius:14px;padding:20px;background:#fff}
+  .card h3{margin:0 0 8px;font-size:18px}
+  .price{font-size:30px;font-weight:700;margin:6px 0}
+  .card ul{padding-left:18px;margin:8px 0 0}
+  .fact{background:var(--soft);border-radius:14px;padding:18px 20px}
+  ol.steps{padding-left:20px} ol.steps li{margin-bottom:8px}
+  footer{padding:32px 20px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
+  @media (prefers-reduced-motion:no-preference){a,button{transition:opacity .15s}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu principal</a>
+<header>
+  <a class="brand" href="#top" id="top">EAA Audit</a>
+  <nav aria-label="Navigation principale">
+    <ul>
+      <li><a href="#pricing">Tarifs</a></li>
+      <li class="hide-m"><a href="#scope">Ce que nous contrôlons</a></li>
+      <li class="hide-m"><a href="#how">Comment ça marche</a></li>
+      <li class="hide-m"><a href="#about">À propos</a></li>
+      <li class="hide-m"><a href="#contact">Contact</a></li>
+    </ul>
+  </nav>
+  <nav class="lang" aria-label="Langue">
+    <a href="../" lang="en" hreflang="en">EN<span class="vh"> — English</span></a>
+    <a href="./" lang="fr" hreflang="fr" aria-current="page">FR<span class="vh"> — Français</span></a>
+  </nav>
+</header>
+
+<main id="main">
+  <section class="hero" aria-labelledby="hero-title" style="border-top:0">
+    <div class="txt">
+      <h1 id="hero-title">Votre boutique en ligne est-elle prête pour l'European Accessibility Act&nbsp;?</h1>
+      <p class="lead">Nous contrôlons votre boutique selon les critères WCAG 2.1 A et AA et vous envoyons un PDF avec chaque erreur détectée et la manière de la corriger.</p>
+      <a class="btn" href="#contact">Recevoir un aperçu gratuit</a>
+      <a class="price-link" href="#pricing">Aperçu gratuit ou audit complet à <span class="nw">390 €</span> : voir les&nbsp;tarifs&nbsp;→</a>
+    </div>
+    <figure>
+      <a href="../samples/EAA_snapshot_example-store.pdf" hreflang="en" type="application/pdf"><img src="../samples/report-page2.png" width="1070" height="920" alt="Page 2 de notre exemple de rapport : liste «&nbsp;À corriger en premier&nbsp;», limites du contrôle et les cinq problèmes les plus importants"></a>
+      <figcaption>Page 2 de notre exemple de rapport (contrôle réel, anonymisé). <span class="tap">Touchez</span><span class="click">Cliquez</span> pour ouvrir l'exemple complet (PDF, 11 pages, en anglais).</figcaption>
+    </figure>
+  </section>
+
+  <p class="who">Qui sommes-nous : un petit service indépendant basé à Astana, au Kazakhstan. Pas encore d'avis clients : jugez le travail sur pièce avec l'<a href="exemple.html">exemple de rapport</a>. <a href="#about">En savoir plus</a></p>
+
+  <section aria-labelledby="facts-title">
+    <h2 id="facts-title">Ce que la loi change pour votre boutique</h2>
+    <p>L'EAA (directive européenne 2019/882) s'applique aux sites de commerce électronique et aux services en ligne dans l'UE depuis le 28 juin 2025. Nous contrôlons automatiquement votre boutique selon WCAG 2.1 A et AA, montrons ce qui échoue et comment le corriger, et indiquons clairement ce qui n'a pas été testé. Un contrôle automatisé ne peut pas prouver qu'une boutique est conforme, et nous ne le prétendons pas.</p>
+    <div class="grid">
+      <div class="fact"><strong>Qui est concerné.</strong> Les boutiques en ligne et services numériques de 10 salariés ou plus, ou de plus de 2 millions d'euros de chiffre d'affaires. Les plus petites entreprises sont encouragées à s'y conformer et se le voient souvent demander par leurs clients professionnels.</div>
+      <div class="fact"><strong>Ce qui est exigé.</strong> La loi fixe des exigences d'accessibilité mais ne cite pas WCAG. En pratique, elles se mesurent avec la norme européenne EN 301 549, fondée sur WCAG 2.1 niveau AA : contrastes lisibles, navigation au clavier, formulaires étiquetés, alternatives textuelles aux images. Un tunnel de commande accessible et une déclaration d'accessibilité sont également attendus. En France, le RGAA (référentiel du secteur public) s'appuie lui aussi sur WCAG ; notre rapport n'est pas un audit RGAA.</div>
+      <div class="fact"><strong>Et si ce n'est pas fait ?</strong> Les sanctions et les modalités de contrôle sont fixées par chaque État membre ; en France, par la loi nationale de transposition (loi n°&nbsp;2023-171 du 9 mars 2023, article 16, et décret n°&nbsp;2023-931 du 9 octobre 2023). Clients et associations peuvent aussi adresser des réclamations.</div>
+      <div class="fact"><strong>Ce qui évolue.</strong> La norme EN 301 549 V4.1.1, publiée en septembre 2026, reprend WCAG 2.2 niveau AA. Sa citation au Journal officiel de l'UE est attendue vers fin novembre 2026. Notre outil ne vérifie pas encore WCAG 2.2.</div>
+    </div>
+  </section>
+
+  <section id="pricing" aria-labelledby="pricing-title">
+    <h2 id="pricing-title">Tarifs</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Aperçu gratuit</h3>
+        <p class="price">0 €</p>
+        <ul>
+          <li>Contrôle automatisé WCAG 2.1 A et AA de 4 pages : accueil, catégorie, fiche produit, panier</li>
+          <li>Rapport PDF avec les principaux problèmes et leur niveau d'impact</li>
+          <li>Notre objectif : 1 jour ouvré</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Audit automatisé</h3>
+        <p class="price">390 €</p>
+        <ul>
+          <li>Jusqu'à 10 pages convenues avec vous : accueil, catégorie, fiche produit, panier, recherche, contact, retours, connexion au compte</li>
+          <li>Rapport en PDF et Word, en anglais</li>
+          <li>Les cinq problèmes les plus importants en langage clair : qui est touché et comment corriger</li>
+          <li>Chaque problème détecté, avec son niveau, son impact, les pages concernées et jusqu'à trois exemples d'éléments</li>
+          <li>Un élément répété sur plusieurs pages n'est compté qu'une fois : vous voyez où une seule correction de gabarit suffit</li>
+          <li>Une courte liste «&nbsp;À corriger en premier&nbsp;»</li>
+          <li>Un résultat pour chacun des 50 critères WCAG 2.1 A et AA, et la liste des vérifications qui restent à faire par une personne</li>
+          <li>Passage au clavier scripté sur une page, la fiche produit : ordre de tabulation, focus visible, pièges possibles, liens d'évitement</li>
+          <li>Livraison sous 3 jours ouvrés après réception de votre paiement</li>
+        </ul>
+      </div>
+    </div>
+    <p>Prix hors TVA le cas échéant. Paiement par virement bancaire sur facture en euros. Voir les <a href="../terms.html" hreflang="en">conditions de service (en anglais)</a>.</p>
+  </section>
+
+  <section id="scope" aria-labelledby="scope-title">
+    <h2 id="scope-title">Ce qui est contrôlé, et ce qui ne l'est pas</h2>
+    <div class="grid">
+      <div class="fact"><strong>Fait automatiquement.</strong> Les règles axe-core 4.14.0 pour WCAG 2.1 A et AA dans le navigateur Chromium, en affichage ordinateur (1366 × 900 pixels), plus le passage au clavier scripté. Un seul passage, avec 2 secondes de pause entre les pages ; nous respectons votre robots.txt et nous refusons toujours les cookies. Une page interdite par robots.txt est ignorée et nommée dans le rapport. Dans notre exemple de rapport, les règles ont touché 22 des 50 critères (44 %), la plupart seulement en partie.</div>
+      <div class="fact"><strong>Fait par nous.</strong> Nous convenons de la liste de pages avec vous, lisons les résultats et rédigeons la liste «&nbsp;À corriger en premier&nbsp;» et les notes sur votre boutique. Les éléments que les règles n'ont pas pu trancher sont listés pour examen, pas comptés comme des échecs.</div>
+      <div class="fact"><strong>Non testé.</strong> L'usage avec un lecteur d'écran. L'usage du clavier par une personne. Le panier rempli, la commande et le paiement : nous ne passons jamais de commande ni n'envoyons de formulaire, le panier est donc contrôlé vide. L'affichage mobile. Les contrastes au survol, au focus et dans les états d'erreur. WCAG 2.2. Le rapport les liste comme vérifications manuelles restant à faire.</div>
+      <div class="fact"><strong>Non proposé aujourd'hui.</strong> Un projet de déclaration d'accessibilité, un nouveau contrôle après vos corrections et un suivi continu. Un rapport de notre part ne prouve pas que votre boutique est conforme à WCAG ou à la loi.</div>
+    </div>
+  </section>
+
+  <section id="how" aria-labelledby="how-title">
+    <h2 id="how-title">Comment ça marche</h2>
+    <ol class="steps">
+      <li>Envoyez-nous l'adresse de votre boutique. Vous recevez un aperçu gratuit avec les problèmes les plus sérieux.</li>
+      <li>Commandez l'audit automatisé. Nous confirmons la liste de pages et envoyons par e-mail un devis avec le prix et la date de livraison.</li>
+      <li>Dans les 3 jours ouvrés suivant la réception de votre paiement, vous recevez le rapport, avec la liste «&nbsp;À corriger en premier&nbsp;» et les vérifications manuelles restantes.</li>
+      <li>Vos développeurs corrigent et organisent les vérifications manuelles.</li>
+    </ol>
+  </section>
+
+  <section id="about" aria-labelledby="about-title">
+    <h2 id="about-title">Qui sommes-nous</h2>
+    <p>EAA Audit est un petit service indépendant basé à Astana, au Kazakhstan. Nous n'avons aucune certification en accessibilité et pas encore d'avis clients. Nous utilisons un service d'IA pour aider à préparer les rapports ; la <a href="../privacy.html" hreflang="en">politique de confidentialité (en anglais)</a> le nomme.</p>
+    <p>Vous pouvez juger le travail sur notre <a href="exemple.html">exemple de rapport</a> : un vrai contrôle de 7 pages d'une boutique en ligne. La boutique ne l'a pas commandé et n'a pas été contactée ; son identité a été retirée. Le rapport est en anglais (PDF, 11 pages). Le PDF n'est pas balisé pour les lecteurs d'écran ; écrivez-nous pour en obtenir une version lisible.</p>
+  </section>
+
+  <section id="contact" aria-labelledby="contact-title">
+    <h2 id="contact-title">Recevoir votre aperçu gratuit</h2>
+    <p>Envoyez-nous l'adresse de votre boutique. Nous répondons en général sous un jour ouvré avec le PDF de l'aperçu.</p>
+    <p><a class="btn" href="mailto:hello@eaa-audit.net?subject=Aper%C3%A7u%20gratuit%20d%27accessibilit%C3%A9&amp;body=Bonjour%2C%20voici%20l%27adresse%20de%20ma%20boutique%20%3A%20https%3A%2F%2F">hello@eaa-audit.net</a></p>
+  </section>
+</main>
+
+<footer>
+  <p>EAA Audit. Contrôles automatisés et scriptés selon WCAG 2.1 A et AA. Les tests automatisés ne détectent qu'une partie des problèmes ; les rapports sont des évaluations techniques, ni une preuve de conformité ni un avis juridique.</p>
+  <p><a href="../terms.html" hreflang="en">Conditions de service (en anglais)</a> · <a href="../privacy.html" hreflang="en">Politique de confidentialité (en anglais)</a> · <a href="../accessibility.html" hreflang="en">Déclaration d'accessibilité (en anglais)</a></p>
+  <p><a href="#top">Retour en haut</a></p>
+</footer>
+</body>
+</html>

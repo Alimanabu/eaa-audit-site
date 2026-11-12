@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EAA Audit — automated WCAG 2.1 accessibility scans for European online shops</title>
 <link rel="canonical" href="https://eaa-audit.net/">
+<link rel="alternate" hreflang="en" href="https://eaa-audit.net/">
+<link rel="alternate" hreflang="fr" href="https://eaa-audit.net/fr/">
+<link rel="alternate" hreflang="x-default" href="https://eaa-audit.net/">
 <meta name="description" content="Automated WCAG 2.1 A and AA accessibility scans for online shops under the European Accessibility Act. Free 4-page snapshot, automated audit of up to 10 pages. What is not tested is stated plainly.">
 <style>
   :root{--bg:#ffffff;--fg:#111827;--muted:#4b5563;--accent:#1d4ed8;--accent-fg:#ffffff;--line:#e5e7eb;--soft:#f3f4f6}
@@ -19,6 +22,10 @@
   nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0 20px}
   nav a{text-decoration:none;color:var(--muted);font-weight:600;font-size:16px;display:inline-block;padding:12px 0}
   nav .hide-m{display:none}
+  .lang{display:flex;gap:4px}
+  .lang a{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 6px;border-radius:8px;text-decoration:none;font-weight:600;color:var(--muted)}
+  .lang a[aria-current]{color:var(--fg);background:var(--soft)}
+  .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   .hero{display:grid;gap:16px;padding:8px 0 24px}
   .hero .txt{display:grid;gap:12px;align-content:start}
   h1{font-size:30px;line-height:1.15;margin:0}
@@ -66,6 +73,10 @@
       <li class="hide-m"><a href="#about">About</a></li>
       <li class="hide-m"><a href="#contact">Contact</a></li>
     </ul>
+  </nav>
+  <nav class="lang" aria-label="Language">
+    <a href="./" lang="en" hreflang="en" aria-current="page">EN<span class="vh"> — English</span></a>
+    <a href="fr/" lang="fr" hreflang="fr">FR<span class="vh"> — Français</span></a>
   </nav>
 </header>
 
