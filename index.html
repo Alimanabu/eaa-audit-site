@@ -16,6 +16,7 @@
   a{color:var(--accent)} a:focus-visible,button:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
   .skip{position:absolute;left:-999px;top:8px;background:var(--accent);color:var(--accent-fg);padding:8px 12px;border-radius:6px}
   .skip:focus{left:8px}
+  main:focus{outline:none}
   header,main,footer{max-width:960px;margin:0 auto;padding:0 20px}
   header{display:flex;gap:8px 18px;justify-content:space-between;align-items:center;min-height:56px}
   .brand{font-weight:700;font-size:18px;text-decoration:none;color:var(--fg)}
@@ -80,7 +81,7 @@
   </nav>
 </header>
 
-<main id="main">
+<main id="main" tabindex="-1">
   <section class="hero" aria-labelledby="hero-title" style="border-top:0">
     <div class="txt">
       <h1 id="hero-title">Is your online shop ready for the European Accessibility Act?</h1>
