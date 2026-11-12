@@ -1000,7 +1000,8 @@ def test_rebuild_uses_saved_headers_of_new_entries(env):
 
 
 def test_forwarded_ai_agent_reply_is_stored_without_alert(env):
-    m = mime("Le Slip <bonjour@slip-shop.example>", "Accessibilité de Slip Shop : 19 éléments à corriger", SLIP_TEXT.split(" On Mon")[0])
+    m = mime("Le Slip <bonjour@slip-shop.example>", "Accessibilité de Slip Shop : 19 éléments à corriger", SLIP_TEXT.split(" On Mon")[0],
+             extra="X-GORGIAS-TICKET-ID: 9\r\n")                 # признак машины в тексте — только вместе с заголовком
     go(env, [m])
     it = live_items(env)[0]
     assert it["forwarded"] is True and it["alert"] is False and json.loads(env.live_json.read_text(encoding="utf-8"))["alert"] is False
@@ -1049,10 +1050,18 @@ def test_weak_forward_phrase_with_support_desk_message_id_is_forwarded(env):
     assert live_items(env)[0]["forwarded"] is True
 
 
-def test_ai_agent_signature_alone_is_forwarded(env):
-    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", "Bonjour, ticket créé. (Agent AI)")])
+def test_ai_agent_signature_with_support_desk_header_is_forwarded(env):
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", "Bonjour, ticket créé. (Agent AI)",
+                  extra="X-GORGIAS-TICKET-ID: 9\r\n")])
     it = live_items(env)[0]
     assert it["forwarded"] is True and it["alert"] is False
+
+
+def test_ai_agent_signature_without_any_machine_header_is_alert(env):
+    """Подпись в тексте без признака машины в заголовках — только текст, его могут процитировать: тревога."""
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", "Bonjour, ticket créé. (Agent AI)")])
+    it = live_items(env)[0]
+    assert it["alert"] is True and "forwarded" not in it
 
 
 @pytest.mark.parametrize("dom", ["sendgrid.net", "mandrillapp.com", "sparkpostmail.com", "mailjet.com", "brevo.com",
@@ -1322,7 +1331,7 @@ def test_r4_weak_phrase_gorgias_and_question_at_900th_char_raises_alert(env):
 
 
 def test_r4_ai_agent_signature_at_the_end_still_forwarded(env):
-    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", AGENT_QUOTE)])
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", AGENT_QUOTE, extra="X-GORGIAS-TICKET-ID: 9\r\n")])
     assert live_items(env)[0]["forwarded"] is True
 
 
@@ -1349,3 +1358,64 @@ def test_r4_empty_store_list_newsletter_without_reply_sign_stays_service(env):
     env.sent_xlsx.unlink()
     go(env, [promo(frm="News <news@unknown-shop.example>")])
     assert not env.live_json.exists()
+
+
+# ---------------------------------------------------------------- 13.11 (r5): признак машины в тексте — только вместе с заголовками
+
+OUTLOOK_PLAIN = ("\r\n\r\nDe : Slip Shop <bonjour@slip-shop.example>\r\nEnvoyé : lundi 9 novembre 2026 19:11\r\n"
+                 "À : hello@eaa-audit.net\r\nObjet : Accessibilité\r\n\r\n" + AGENT_QUOTE)
+OUTLOOK_HTML_BLOCK = ("<hr><div><b>De :</b> Slip Shop &lt;bonjour@slip-shop.example&gt;<br><b>Envoyé :</b> lundi 9 novembre 2026 19:11<br>"
+                      "<b>À :</b> hello@eaa-audit.net<br><b>Objet :</b> Accessibilité</div><div><p>" + AGENT_QUOTE + "</p></div>")
+NEUTRAL = "Merci, je regarde ça cette semaine avec mon équipe."
+ON_WROTE_TAIL = "On Mon, Nov 9, 2026 at 7:11 PM Slip Shop <bonjour@slip-shop.example> wrote:\r\n> merci de votre message"
+GORGIAS_REPLY = "X-GORGIAS-TICKET-ID: 5\r\nIn-Reply-To: <o@x>\r\n"
+
+
+@pytest.mark.parametrize("variant", ["ends-with-signature", "on-wrote-after-signature"])
+@pytest.mark.parametrize("fmt", ["plain", "html"])
+def test_r5_human_reply_with_outlook_block_and_agent_ai_quote_raises_alert(env, fmt, variant):
+    if fmt == "plain":
+        body = NEUTRAL + OUTLOOK_PLAIN + ("" if variant == "ends-with-signature" else "\r\n\r\n" + ON_WROTE_TAIL)
+        m = mime("Marie <marie@slip-shop.example>", "RE: Accessibility check", body, extra=GORGIAS_REPLY)
+    else:
+        tail = "" if variant == "ends-with-signature" else "<div>" + ON_WROTE_TAIL.replace("\r\n> ", "<br>&gt; ").replace("<", "&lt;") + "</div>"
+        m = html_mail("Marie <marie@slip-shop.example>", "RE: Accessibility check",
+                      f"<div><p>{NEUTRAL}</p><p>Marie</p></div>{OUTLOOK_HTML_BLOCK}{tail}", extra=GORGIAS_REPLY)
+    go(env, [m])
+    it = live_items(env)[0]
+    assert it["alert"] is True and "forwarded" not in it
+    assert "Agent AI" not in it["meta"]["head"] and NEUTRAL in it["meta"]["head"]            # цитата отрезана до разбора
+
+
+@pytest.mark.parametrize("hdr,lab", [("From", "Sent"), ("Von", "Gesendet"), ("Van", "Verzonden")])
+def test_r5_outlook_block_labels_in_other_languages(env, hdr, lab):
+    body = f"{NEUTRAL}\r\n\r\n{hdr}: Shop <b@slip-shop.example>\r\n{lab}: Monday\r\nTo: hello\r\n\r\n{AGENT_QUOTE}"
+    go(env, [mime("Marie <marie@slip-shop.example>", "Re: Accessibility check", body, extra=GORGIAS_REPLY)])
+    it = live_items(env)[0]
+    assert it["alert"] is True and "Agent AI" not in it["meta"]["head"]
+
+
+def test_r5_single_from_line_is_not_a_quote(env):
+    body = "Voir le message de Paul.\r\nDe : Paul sur le sujet, rien de neuf.\r\nPuis une autre ligne.\r\nEt une autre.\r\nEt encore.\r\nFin."
+    go(env, [mime("Marie <marie@slip-shop.example>", "Re: Accessibility check", body, extra="In-Reply-To: <o@x>\r\n")])
+    assert "Fin." in live_items(env)[0]["meta"]["head"]
+
+
+@pytest.mark.parametrize("extra", ["X-GORGIAS-TICKET-ID: 9\r\n", "X-Zendesk-From-Account-Id: 7\r\n"], ids=["gorgias", "zendesk"])
+def test_r5_machine_header_plus_text_sign_is_forwarded(env, extra):
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", AGENT_QUOTE, extra=extra)])
+    it = live_items(env)[0]
+    assert it["forwarded"] is True and it["alert"] is False
+
+
+def test_r5_machine_message_id_plus_signature_is_forwarded(env):
+    go(env, [mime("Support <help@live-shop.example>", "Re: Accessibility check", AGENT_QUOTE, mid="<t.1@gorgias.com>")])
+    assert live_items(env)[0]["forwarded"] is True
+
+
+@pytest.mark.parametrize("phrase", ["call\r\nme", "call  me", "send\r\nus", "send  me"])
+def test_r5_human_sign_across_whitespace_and_line_break(env, phrase):
+    body = f"Thanks, please {phrase} the details. Je fais suivre votre dossier."
+    go(env, [mime("Anna <anna@live-shop.example>", "Re: Accessibility check", body, extra="X-GORGIAS-TICKET-ID: 9\r\n")])
+    it = live_items(env)[0]
+    assert it["alert"] is True and "forwarded" not in it

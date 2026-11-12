@@ -18,6 +18,7 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes as wt
 import email
+import html
 import imaplib
 import json
 import os
@@ -193,18 +194,24 @@ SUPPORT_HDR_PREFIX = ("x-gorgias-", "x-zendesk-", "x-freshdesk-", "x-helpscout-"
 SUPPORT_MSGID = re.compile(r"@(?:[\w-]+\.)*(?:gorgias\.com|zendesk\.com|freshdesk\.com|helpscout\.net|intercom-mail\.com|"
                            r"intercom\.io|kustomerapp\.com|frontapp\.com|gladly\.com|reamaze\.com|richpanel\.com)>?\s*$", re.I)
 # слабые признаки «передачи» не работают, если в тексте есть вопрос или деловое слово: это уже человек, тревога нужна
-HUMAN_SIGNS = re.compile(r"\?|devis|quote|pricing|price|prix|tarif|rendez-vous|appel(?:ez|er)|call me|meeting|interested|int[ée]ress|"
-                         r"envoyez|send (?:me|us)", re.I)
+HUMAN_SIGNS = re.compile(r"\?|devis|quote|pricing|price|prix|tarif|rendez-vous|appel(?:ez|er)|call\s+me|meeting|interested|int[ée]ress|"
+                         r"envoyez|send\s+(?:me|us)", re.I)
 # только маркетинговые серверы рассылок; sendgrid/mandrill/sparkpost/mailjet/brevo/hubspot убраны — через них пишут люди
 ESP_MSGID = re.compile(r"@(?:[\w-]+\.)*(?:klaviyomail\.com|mcsv\.net|mcdlv\.net|rsgsv\.net|createsend\.com|"
                        r"cmail\d+\.com|exct\.net)>?\s*$", re.I)
 
 
 def support_desk(msg) -> bool:
-    """Письмо пришло через систему поддержки (Gorgias, Zendesk…): её заголовок или Message-ID её домена."""
+    """Признак машины в ЗАГОЛОВКАХ самого письма: заголовок системы поддержки (X-GORGIAS-TICKET-ID…), Message-ID её
+    домена или Auto-Submitted. Текст могут процитировать, заголовки — нет (13.11)."""
     if any(str(k).lower().startswith(SUPPORT_HDR_PREFIX) for k in msg.keys()):
         return True
+    auto = str(msg.get("Auto-Submitted", "") or "").strip().lower()
+    if auto and auto != "no":
+        return True
     return bool(SUPPORT_MSGID.search(str(msg.get("Message-ID", "") or "")))
+
+
 SERVICE_DOMAINS = ("namecheap.com", "privateemail.com", "github.com", "google.com", "googlemail.com",
                    "eaa-audit.net", "dmarcian.com", "postmarkapp.com")
 
@@ -269,7 +276,9 @@ def store_match(sender: str, stores: dict):
 
 QUOTE_RE = re.compile(
     r"(?im)^[ \t]*(?:>|-{2,}\s*(?:original message|message d.origine|forwarded)|_{8,}|"
-    r"on\b[^\n]{0,200}?(?:\n[^\n]{0,120})?wrote:|le\b[^\n]{0,200}?(?:\n[^\n]{0,120})?a [ée]crit\s*:)")
+    r"on\b[^\n]{0,200}?(?:\n[^\n]{0,120})?wrote:|le\b[^\n]{0,200}?(?:\n[^\n]{0,120})?a [ée]crit\s*:|"
+    # блок заголовков Outlook: «De :» / «From:» / «Von:» / «Van:», затем в 1–3 строках «Envoyé :» / «Sent:» / «Date:» …
+    r"(?:de|from|von|van)[ \t\xa0]*:[^\n]*\n(?:[^\n]*\n){0,2}[ \t]*(?:envoy[ée]|sent|date|gesendet|verzonden)[ \t\xa0]*:)")
 
 
 def strip_quote(body: str) -> str:
@@ -285,6 +294,7 @@ def html_to_text(s: str) -> str:
     s = re.sub(r"(?i)<blockquote[^>]*>", "\n> ", s)
     s = re.sub(r"(?i)<br\s*/?>|</(?:p|div|li|tr|h\d)>", "\n", s)
     s = re.sub(r"(?s)<[^>]+>", " ", s)
+    s = html.unescape(s).replace("\xa0", " ")                 # &nbsp; в «De&nbsp;:» Outlook
     s = re.sub(r"[ \t\r\f\v]+", " ", s)
     return re.sub(r"\n\s*", "\n", s).strip()
 
@@ -381,10 +391,11 @@ def classify(msg, body: str, rest: str, stores: dict) -> Verdict:
         return Verdict("service", "служебное/рассылка/SEO")
     # д) «автоответ с передачей» без тревоги — только по сильному признаку машины: подпись ИИ-агента или
     # слабая фраза + система поддержки (заголовок/Message-ID). Слабая фраза без сильного признака — живое с тревогой.
-    # Признак человека (вопрос, деловое слово) ищем по ВСЕМУ тексту до цитаты и он отменяет обе ветки; подпись ИИ-агента
-    # считается, только если стоит в конце этого текста (последние 200 знаков), а не где-то в пересланном (13.11).
+    # Признак человека (вопрос, деловое слово) ищем по ВСЕМУ тексту до цитаты и он отменяет обе ветки. Признак машины
+    # в ТЕКСТЕ (подпись «(Agent AI)» в последних 200 знаках текста до цитаты, слабая фраза) считается ТОЛЬКО вместе с
+    # признаком машины в заголовках самого письма — support_desk(msg): текст могут процитировать, заголовки нет (13.11).
     weak = FORWARD_WEAK.search(head)
-    machine = FORWARD_STRONG.search(before_quote[-200:]) or (weak and support_desk(msg))
+    machine = support_desk(msg) and (FORWARD_STRONG.search(before_quote[-200:]) or weak)
     if machine and not HUMAN_SIGNS.search(before_quote):
         return Verdict("forwarded", "передача в отдел")
     if weak:
