@@ -10,122 +10,219 @@
 <link rel="alternate" hreflang="x-default" href="https://eaa-audit.net/">
 <meta name="description" content="Contrôles automatisés d'accessibilité WCAG 2.1 A et AA pour les boutiques en ligne, dans le cadre de l'European Accessibility Act. Aperçu gratuit sur 4 pages, audit automatisé jusqu'à 10 pages. Ce qui n'est pas testé est indiqué clairement.">
 <style>
-  :root{--bg:#ffffff;--fg:#111827;--muted:#4b5563;--accent:#1d4ed8;--accent-fg:#ffffff;--line:#e5e7eb;--soft:#f3f4f6}
+  :root{--paper:#f6f3ec;--paper2:#efeae0;--sheet:#fbfaf6;--ink:#1c1b19;--muted:#55524b;--line:#cfc8b8;--acc:#1b2a4a;--acc-fg:#f6f3ec;--hl:#f2dc8c;--bad:#8a1c2b}
   *{box-sizing:border-box}
-  body{margin:0;font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--fg);background:var(--bg);line-height:1.55}
-  a{color:var(--accent)} a:focus-visible,button:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
-  .skip{position:absolute;left:-999px;top:8px;background:var(--accent);color:var(--accent-fg);padding:8px 12px;border-radius:6px}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:1.6;overflow-wrap:break-word}
+  a{color:var(--acc)}
+  a:focus-visible,button:focus-visible{outline:3px solid #b45309;outline-offset:3px}
+  .skip{position:absolute;left:-999px;top:8px;z-index:10;background:var(--acc);color:var(--acc-fg);padding:8px 12px}
   .skip:focus{left:8px}
   main:focus{outline:none}
-  header,main,footer{max-width:960px;margin:0 auto;padding:0 20px}
-  header{display:flex;gap:8px 18px;justify-content:space-between;align-items:center;min-height:56px}
-  .brand{font-weight:700;font-size:18px;text-decoration:none;color:var(--fg)}
-  nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0 20px}
-  nav a{text-decoration:none;color:var(--muted);font-weight:600;font-size:16px;display:inline-block;padding:12px 0}
-  nav .hide-m{display:none}
-  .lang{display:flex;gap:4px}
-  .lang a{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 6px;border-radius:8px;text-decoration:none;font-weight:600;color:var(--muted)}
-  .lang a[aria-current]{color:var(--fg);background:var(--soft)}
   .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  .hero{display:grid;gap:16px;padding:8px 0 24px}
-  .hero .txt{display:grid;gap:12px;align-content:start}
-  h1{font-size:30px;line-height:1.15;margin:0}
-  .lead{font-size:16px;color:var(--muted);margin:0}
-  .hero .btn{display:flex;align-items:center;justify-content:center;height:52px;margin:0;padding:0 22px;font-size:18px}
-  .price-link{font-size:16px;font-weight:600;display:inline-block;padding:4px 0}
-  .hero figure{margin:0}
-  .hero figure a{display:block;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(17,24,39,.10)}
-  .sample figure{margin:16px 0;max-width:560px}
-  .sample figure img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:12px}
-  .hero figure img{display:block;width:100%;height:auto}
-  .who{margin:0;padding:12px 0;border-top:1px solid var(--line);font-size:15px;color:var(--muted)}
-  figcaption{font-size:14px;color:var(--muted);margin-top:8px}
-  .click{display:none}
   .nw{white-space:nowrap}
-  @media (hover:hover) and (pointer:fine){.tap{display:none}.click{display:inline}}
-  @media (min-width:900px){
-    header{min-height:72px} nav .hide-m{display:list-item}
-    .hero{grid-template-columns:1fr 440px;gap:40px;align-items:center;padding:24px 0 32px}
-    h1{font-size:44px} .lead{font-size:19px;max-width:560px} .hero .txt{gap:20px}
-    .hero .btn{display:inline-flex;width:max-content;padding:0 28px} .price-link{font-size:17px}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+  .serif,h1,h2,.brand,.num{font-family:Georgia,"Iowan Old Style","Times New Roman",serif}
+  /* header */
+  header{display:flex;gap:4px 12px;justify-content:space-between;align-items:center;min-height:64px;border-bottom:1px solid var(--ink)}
+  .brand{font-size:21px;color:var(--ink);text-decoration:none;padding:10px 0}
+  .brand i{color:var(--acc)}
+  nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0 18px}
+  nav ul a{color:var(--ink);text-decoration:none;font-size:16px;display:inline-block;padding:12px 0}
+  nav .hide-m{display:none}
+  .hd-right{display:flex;align-items:center;gap:6px 14px;margin-left:auto}
+  .lang{display:flex;gap:2px}
+  .lang a{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 6px;text-decoration:none;font-weight:600;font-size:15px;color:var(--muted)}
+  .lang a[aria-current]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+  /* hero */
+  .eyebrow{font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
+  .hero{display:grid;gap:34px;padding:26px 0 44px}
+  h1{font-weight:400;font-size:36px;line-height:1.1;margin:10px 0 16px;letter-spacing:-.01em}
+  h1 i{color:var(--acc)}
+  .lead{color:var(--muted);margin:0 0 22px;font-size:18px;max-width:540px}
+  .btn{display:flex;align-items:center;justify-content:center;text-align:center;min-height:54px;padding:8px 26px;background:var(--acc);color:var(--acc-fg);text-decoration:none;font-weight:600;font-size:18px;line-height:1.25;border-radius:2px}
+  .btn.line{background:transparent;color:var(--ink);border:1px solid var(--ink)}
+  .cta{display:grid;gap:10px}
+  .small{font-size:15px;color:var(--muted);margin:14px 0 0}
+  /* report sheet */
+  .sheet-fig{margin:0 8px 0 0}
+  .sheet{background:var(--sheet);border:1px solid var(--line);box-shadow:8px 8px 0 -1px var(--paper2),8px 8px 0 0 var(--line),0 24px 50px -20px rgba(28,27,25,.25);padding:22px 20px 20px}
+  .sheet .hd{display:flex;flex-wrap:wrap;gap:0 12px;justify-content:space-between;font-size:15px;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:10px;margin:0 0 12px}
+  .sheet .t2{font-family:Georgia,serif;font-size:24px;line-height:1.2;margin:0 0 6px;color:var(--acc)}
+  .sheet .t3{font-family:Georgia,serif;font-size:19px;margin:10px 0 6px;color:var(--acc)}
+  .sheet ol{margin:0;padding-left:22px}
+  .sheet li{font-size:16px;margin:0 0 8px}
+  .mark{background-image:linear-gradient(var(--hl),var(--hl));background-repeat:no-repeat;background-size:100% 100%;background-position:0 0;-webkit-box-decoration-break:clone;box-decoration-break:clone;padding:0 2px}
+  .ledger{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);margin-top:14px}
+  .ledger div{padding:12px 8px 10px;border-right:1px solid var(--line);min-width:0}
+  .ledger div:last-child{border-right:0}
+  .ledger b{display:block;font-family:Georgia,serif;font-weight:400;font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+  .ledger span{display:block;font-size:15px;color:var(--muted);line-height:1.3;margin-top:4px}
+  .ledger .r b{color:var(--bad)}
+  .sheet-fig figcaption{font-size:15px;color:var(--muted);margin-top:18px}
+  /* sections */
+  section{padding:56px 0}
+  .rule{height:1px;background:var(--ink);transform-origin:left;margin-bottom:30px}
+  h2{font-weight:400;font-size:32px;line-height:1.15;margin:0 0 24px;max-width:760px}
+  h3{font-size:18px;margin:0 0 6px}
+  .rows{display:grid}
+  .row{display:grid;grid-template-columns:104px 1fr;gap:14px;align-items:baseline;padding:18px 0;border-top:1px solid var(--line)}
+  .row:last-child{border-bottom:1px solid var(--line)}
+  .row .num{font-size:34px;line-height:1;font-variant-numeric:tabular-nums;font-weight:400}
+  .num [data-to]{display:inline-block;min-width:2ch;text-align:right}
+  .row p{margin:0;color:var(--muted)}
+  .row p strong{color:var(--ink);font-weight:600}
+  .notes{display:grid;gap:0 48px}
+  .notes > div{padding:18px 0;border-top:1px solid var(--line)}
+  .notes p{margin:0}
+  .notes strong{font-weight:600}
+  .cols{display:grid;gap:0}
+  .plan{padding:24px 0 30px;border-top:1px solid var(--ink)}
+  .plan h3{font-family:Georgia,serif;font-weight:400;font-size:24px;margin:0}
+  .plan .price{font-family:Georgia,serif;font-size:52px;line-height:1.1;margin:8px 0}
+  .plan .price small{font-size:20px;color:var(--muted)}
+  .plan ul{list-style:none;padding:0;margin:0 0 22px}
+  .plan li{padding:8px 0 8px 24px;border-bottom:1px solid var(--line);position:relative}
+  .plan li:before{content:"—";position:absolute;left:0;color:var(--muted)}
+  .steps{list-style:none;padding:0;margin:0;display:grid}
+  .steps li{display:grid;grid-template-columns:48px 1fr;gap:12px;padding:18px 0;border-top:1px solid var(--line)}
+  .steps li:last-child{border-bottom:1px solid var(--line)}
+  .steps li span{font-family:Georgia,serif;font-style:italic;font-size:24px;line-height:1.2;color:var(--acc)}
+  .contact{background:var(--acc);color:var(--acc-fg);padding:52px 20px;margin:0 -20px;text-align:center}
+  .contact h2{margin:0 auto 12px;color:var(--acc-fg)}
+  .contact p{color:#e2ddd1;margin:0 auto 22px;max-width:580px}
+  .contact a{color:var(--acc-fg)}
+  .contact .btn{background:var(--paper);color:var(--acc);max-width:420px;margin:0 auto}
+  .contact a:focus-visible{outline-color:var(--hl)}
+  footer{padding:28px 0 40px;font-size:15px;color:var(--muted)}
+  /* motion: only when allowed; without JS everything is shown as is */
+  @media (prefers-reduced-motion:no-preference){
+    .js .mark{background-size:0% 100%;transition:background-size 1.1s cubic-bezier(.6,.1,.2,1)}
+    .js .in .mark{background-size:100% 100%}
+    .js .in .mark.m2{transition-delay:.9s}
+    .js .in .mark.m3{transition-delay:1.8s}
+    .js .rule{transform:scaleX(0);transition:transform 1.2s cubic-bezier(.6,.1,.2,1)}
+    .js .rule.in{transform:none}
+    .js .rv{opacity:0;transform:translateY(18px);transition:opacity .8s ease,transform .8s ease}
+    .js .rv.in{opacity:1;transform:none}
+    .js .d1{transition-delay:.15s}
+    .js .now{transition:none}
   }
-  .btn{display:inline-block;margin-bottom:8px;background:var(--accent);color:var(--accent-fg);text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:600}
-  .btn.secondary{background:var(--soft);color:var(--fg)}
-  .actions{display:flex;flex-wrap:wrap;column-gap:12px}
-  section{padding:32px 0;border-top:1px solid var(--line)}
-  h2{font-size:26px;margin:0 0 16px}
-  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))}
-  .card{border:1px solid var(--line);border-radius:14px;padding:20px;background:#fff}
-  .card h3{margin:0 0 8px;font-size:18px}
-  .price{font-size:30px;font-weight:700;margin:6px 0}
-  .card ul{padding-left:18px;margin:8px 0 0}
-  .fact{background:var(--soft);border-radius:14px;padding:18px 20px}
-  ol.steps{padding-left:20px} ol.steps li{margin-bottom:8px}
-  footer{padding:32px 20px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
-  @media (prefers-reduced-motion:no-preference){a,button{transition:opacity .15s}}
+  @media print{.js .rv{opacity:1;transform:none}.js .rule{transform:none}.js .mark{background-size:100% 100%}}
+  @media (min-width:900px){
+    header{min-height:72px}
+    nav .hide-m{display:list-item}
+    .hero{grid-template-columns:1fr 470px;gap:60px;align-items:center;padding:60px 0 76px}
+    h1{font-size:54px}
+    .cta{grid-auto-flow:column;justify-content:start}
+    h2{font-size:42px}
+    .row{grid-template-columns:180px 1fr;gap:20px}
+    .row .num{font-size:56px}
+    .notes,.cols{grid-template-columns:1fr 1fr}
+    .cols{gap:56px}
+    .contact{margin:0;border-radius:2px}
+  }
 </style>
 </head>
 <body>
+<script>document.documentElement.classList.add('js')</script>
 <a class="skip" href="#main">Aller au contenu principal</a>
+<div class="wrap">
 <header>
-  <a class="brand" href="#top" id="top">EAA Audit</a>
-  <nav aria-label="Navigation principale">
-    <ul>
-      <li><a href="#pricing">Tarifs</a></li>
-      <li class="hide-m"><a href="#scope">Ce que nous contrôlons</a></li>
-      <li class="hide-m"><a href="#how">Comment ça marche</a></li>
-      <li class="hide-m"><a href="#about">À propos</a></li>
-      <li class="hide-m"><a href="#contact">Contact</a></li>
-    </ul>
-  </nav>
-  <nav class="lang" aria-label="Langue">
-    <a href="../" lang="en" hreflang="en">EN<span class="vh"> — English</span></a>
-    <a href="./" lang="fr" hreflang="fr" aria-current="page">FR<span class="vh"> — Français</span></a>
-  </nav>
+  <a class="brand" href="#top" id="top">EAA <i>Audit</i></a>
+  <div class="hd-right">
+    <nav aria-label="Navigation principale">
+      <ul>
+        <li><a href="#pricing">Tarifs</a></li>
+        <li class="hide-m"><a href="#scope">Ce que nous contrôlons</a></li>
+        <li class="hide-m"><a href="#how">Comment ça marche</a></li>
+        <li class="hide-m"><a href="#about">À propos</a></li>
+        <li class="hide-m"><a href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+    <nav class="lang" aria-label="Langue">
+      <a href="../" lang="en" hreflang="en">EN<span class="vh"> — English</span></a>
+      <a href="./" lang="fr" hreflang="fr" aria-current="page">FR<span class="vh"> — Français</span></a>
+    </nav>
+  </div>
 </header>
 
 <main id="main" tabindex="-1">
-  <section class="hero" aria-labelledby="hero-title" style="border-top:0">
-    <div class="txt">
-      <h1 id="hero-title">Votre boutique en ligne est-elle prête pour l'European Accessibility Act&nbsp;?</h1>
+  <section class="hero" aria-labelledby="hero-title">
+    <div>
+      <p class="eyebrow">WCAG 2.1 A et AA · <span lang="en">European Accessibility Act</span></p>
+      <h1 id="hero-title">Votre boutique en ligne est-elle prête pour l'<i>European Accessibility Act&nbsp;?</i></h1>
       <p class="lead">Nous contrôlons votre boutique selon les critères WCAG 2.1 A et AA et vous envoyons un PDF avec chaque erreur détectée et la manière de la corriger.</p>
-      <a class="btn" href="#contact">Recevoir un aperçu gratuit</a>
-      <a class="price-link" href="#pricing">Aperçu gratuit ou audit complet à <span class="nw">390 €</span> : voir les&nbsp;tarifs&nbsp;→</a>
+      <div class="cta">
+        <a class="btn" href="#contact">Recevoir un aperçu gratuit</a>
+        <a class="btn line" href="#pricing">Audit automatisé&nbsp;·&nbsp;<span class="nw">390&nbsp;€</span></a>
+      </div>
+      <p class="small">Qui sommes-nous : un petit service indépendant basé à Astana, au Kazakhstan. Pas encore d'avis clients : jugez le travail sur pièces avec l'<a href="exemple.html">exemple de rapport</a>. <a href="#about">En savoir plus</a></p>
     </div>
-    <figure>
-      <a href="../samples/EAA_snapshot_example-store.pdf" hreflang="en" type="application/pdf"><img src="../samples/report-page2.png" width="1070" height="920" alt="Page 2 de notre exemple de rapport : liste «&nbsp;À corriger en premier&nbsp;», limites du contrôle et les cinq problèmes les plus importants"></a>
-      <figcaption>Page 2 de notre exemple de rapport (contrôle réel, anonymisé). <span class="tap">Touchez</span><span class="click">Cliquez</span> pour ouvrir l'exemple complet (PDF, 11 pages, en anglais).</figcaption>
+
+    <figure class="sheet-fig">
+      <div class="sheet" id="sheet" lang="en">
+        <p class="hd"><span>EAA Audit · sample report · page 2 of 11</span><span>anonymised</span></p>
+        <p class="t2">1. Summary</p>
+        <p class="t3">Fix first</p>
+        <ol>
+          <li><span class="mark">Sort-by control: add its options and a name</span> (critical, level A; 1 element, 2 of 7 pages)</li>
+          <li><span class="mark m2">Pale text: darken to 4.5:1</span> (serious, level AA; 16 elements, 3 of 7 pages)</li>
+          <li><span class="mark m3">Icon links: add a text name</span> (serious, level A; 3 elements, 2 of 7 pages)</li>
+        </ol>
+        <div class="ledger">
+          <div class="r"><b data-to="25">25</b><span>occurrences on 7 pages</span></div>
+          <div><b data-to="20">20</b><span>distinct elements</span></div>
+          <div class="r"><b data-to="4">4</b><span>WCAG criteria failed</span></div>
+        </div>
+      </div>
+      <figcaption>Page 2 de notre exemple de rapport (contrôle réel, anonymisé). Voir l'<a href="exemple.html">exemple de rapport</a> (PDF, 11 pages, en anglais).</figcaption>
     </figure>
   </section>
 
-  <p class="who">Qui sommes-nous : un petit service indépendant basé à Astana, au Kazakhstan. Pas encore d'avis clients : jugez le travail sur pièces avec l'<a href="exemple.html">exemple de rapport</a>. <a href="#about">En savoir plus</a></p>
+  <section id="findings" aria-labelledby="findings-title">
+    <div class="rule"></div>
+    <p class="eyebrow rv">Exemple de rapport</p>
+    <h2 id="findings-title" class="rv">Ce qu'un contrôle de 7 pages a trouvé</h2>
+    <div class="rows">
+      <div class="row rv"><span class="num">1,72:1</span><p><strong>Contraste des anciens prix barrés</strong> sur la page de recherche : #c5c5c5 sur blanc. Le ratio exigé est de 4,5:1.</p></div>
+      <div class="row rv"><span class="num" data-to="16">16</span><p><strong>Éléments au texte trop pâle par rapport au fond,</strong> sur 3 des 7 pages. Un élément répété sur plusieurs pages n'est compté qu'une fois : vous voyez où une seule correction de gabarit suffit.</p></div>
+      <div class="row rv"><span class="num" data-to="43">43</span><p><strong>Les éléments que les règles n'ont pas pu trancher</strong> sont listés pour examen, pas comptés comme des échecs.</p></div>
+      <div class="row rv"><span class="num"><span data-to="22">22</span>/50</span><p><strong>Dans notre exemple de rapport, les règles ont touché 22 des 50 critères (44 %),</strong> la plupart seulement en partie.</p></div>
+    </div>
+    <p class="rv" style="margin:22px 0 0"><a href="exemple.html">Exemple de rapport</a> (PDF, 11 pages, en anglais)</p>
+  </section>
 
   <section aria-labelledby="facts-title">
-    <h2 id="facts-title">Ce que la loi change pour votre boutique</h2>
-    <p>L'EAA (directive européenne 2019/882) s'applique aux sites de commerce électronique et aux services en ligne dans l'UE depuis le 28 juin 2025. Nous contrôlons automatiquement votre boutique selon WCAG 2.1 A et AA, montrons ce qui échoue et comment le corriger, et indiquons clairement ce qui n'a pas été testé. Un contrôle automatisé ne peut pas prouver qu'une boutique est conforme, et nous ne le prétendons pas.</p>
-    <div class="grid">
-      <div class="fact"><strong>Qui est concerné.</strong> Les boutiques en ligne et services numériques de 10 salariés ou plus, ou de plus de 2 millions d'euros de chiffre d'affaires. Les plus petites entreprises sont encouragées à s'y conformer et se le voient souvent demander par leurs clients professionnels.</div>
-      <div class="fact"><strong>Ce qui est exigé.</strong> La loi fixe des exigences d'accessibilité mais ne cite pas WCAG. En pratique, elles se mesurent avec la norme européenne EN 301 549, fondée sur WCAG 2.1 niveau AA : contrastes lisibles, navigation au clavier, formulaires étiquetés, alternatives textuelles aux images. Un tunnel de commande accessible et une déclaration d'accessibilité sont également attendus. En France, le RGAA (référentiel du secteur public) s'appuie lui aussi sur WCAG ; notre rapport n'est pas un audit RGAA.</div>
-      <div class="fact"><strong>Et si ce n'est pas fait ?</strong> Les sanctions et les modalités de contrôle sont fixées par chaque État membre ; en France, par les textes de transposition (loi n°&nbsp;2023-171 du 9 mars 2023 et décret n°&nbsp;2023-931 du 9 octobre 2023). Clients et associations peuvent aussi adresser des réclamations.</div>
-      <div class="fact"><strong>Ce qui évolue.</strong> La norme EN 301 549 V4.1.1, publiée en septembre 2026, reprend WCAG 2.2 niveau AA. Sa citation au Journal officiel de l'UE est attendue vers fin novembre 2026. Notre outil ne vérifie pas encore WCAG 2.2.</div>
+    <div class="rule"></div>
+    <h2 id="facts-title" class="rv">Ce que la loi change pour votre boutique</h2>
+    <p class="rv" style="margin:0 0 24px;max-width:760px">L'EAA (directive européenne 2019/882) s'applique aux sites de commerce électronique et aux services en ligne dans l'UE depuis le 28 juin 2025. Nous contrôlons automatiquement votre boutique selon WCAG 2.1 A et AA, montrons ce qui échoue et comment le corriger, et indiquons clairement ce qui n'a pas été testé. Un contrôle automatisé ne peut pas prouver qu'une boutique est conforme, et nous ne le prétendons pas.</p>
+    <div class="notes">
+      <div class="rv"><p><strong>Qui est concerné.</strong> Les boutiques en ligne et services numériques de 10 salariés ou plus, ou de plus de 2 millions d'euros de chiffre d'affaires. Les plus petites entreprises sont encouragées à s'y conformer et se le voient souvent demander par leurs clients professionnels.</p></div>
+      <div class="rv d1"><p><strong>Ce qui est exigé.</strong> La loi fixe des exigences d'accessibilité mais ne cite pas WCAG. En pratique, elles se mesurent avec la norme européenne EN 301 549, fondée sur WCAG 2.1 niveau AA : contrastes lisibles, navigation au clavier, formulaires étiquetés, alternatives textuelles aux images. Un tunnel de commande accessible et une déclaration d'accessibilité sont également attendus. En France, le RGAA (référentiel du secteur public) s'appuie lui aussi sur WCAG ; notre rapport n'est pas un audit RGAA.</p></div>
+      <div class="rv"><p><strong>Et si ce n'est pas fait ?</strong> Les sanctions et les modalités de contrôle sont fixées par chaque État membre ; en France, par les textes de transposition (loi n°&nbsp;2023-171 du 9 mars 2023 et décret n°&nbsp;2023-931 du 9 octobre 2023). Clients et associations peuvent aussi adresser des réclamations.</p></div>
+      <div class="rv d1"><p><strong>Ce qui évolue.</strong> La norme EN 301 549 V4.1.1, publiée en septembre 2026, reprend WCAG 2.2 niveau AA. Sa citation au Journal officiel de l'UE est attendue vers fin novembre 2026. Notre outil ne vérifie pas encore WCAG 2.2.</p></div>
     </div>
   </section>
 
   <section id="pricing" aria-labelledby="pricing-title">
-    <h2 id="pricing-title">Tarifs</h2>
-    <div class="grid">
-      <div class="card">
+    <div class="rule"></div>
+    <h2 id="pricing-title" class="rv">Tarifs</h2>
+    <div class="cols">
+      <div class="plan rv">
         <h3>Aperçu gratuit</h3>
-        <p class="price">0 €</p>
+        <p class="price">0 <small>€</small></p>
         <ul>
           <li>Contrôle automatisé WCAG 2.1 A et AA de 4 pages : accueil, catégorie, fiche produit, panier</li>
           <li>Rapport PDF (en anglais) avec les principaux problèmes et leur niveau d'impact</li>
           <li>Notre objectif : 1 jour ouvré</li>
         </ul>
+        <a class="btn line" href="mailto:hello@eaa-audit.net?subject=Aper%C3%A7u%20gratuit%20d%27accessibilit%C3%A9&amp;body=Bonjour%2C%20voici%20l%27adresse%20de%20ma%20boutique%20%3A%20https%3A%2F%2F">Recevoir un aperçu gratuit</a>
       </div>
-      <div class="card">
+      <div class="plan rv d1">
         <h3>Audit automatisé</h3>
-        <p class="price">390 €</p>
+        <p class="price">390 <small>€</small></p>
         <ul>
           <li>Jusqu'à 10 pages convenues avec vous : accueil, catégorie, fiche produit, panier, recherche, contact, retours, connexion au compte</li>
           <li>Rapport en PDF et Word, en anglais</li>
@@ -137,41 +234,47 @@
           <li>Passage au clavier scripté sur une page, la fiche produit : ordre de tabulation, focus visible, pièges possibles, liens d'évitement</li>
           <li>Livraison sous 3 jours ouvrés après réception de votre paiement</li>
         </ul>
+        <a class="btn" href="mailto:hello@eaa-audit.net?subject=Audit%20automatis%C3%A9">Commander l'audit automatisé</a>
       </div>
     </div>
-    <p>Prix hors TVA le cas échéant. Paiement par virement bancaire sur facture en euros. Voir les <a href="../terms.html" hreflang="en">conditions de service (en anglais)</a>.</p>
+    <p class="small rv">Prix hors TVA le cas échéant. Paiement par virement bancaire sur facture en euros. Voir les <a href="../terms.html" hreflang="en">conditions de service (en anglais)</a>.</p>
   </section>
 
   <section id="scope" aria-labelledby="scope-title">
-    <h2 id="scope-title">Ce qui est contrôlé, et ce qui ne l'est pas</h2>
-    <div class="grid">
-      <div class="fact"><strong>Fait automatiquement.</strong> Les règles axe-core 4.14.0 pour WCAG 2.1 A et AA dans le navigateur Chromium, en affichage ordinateur (1366 × 900 pixels), plus le passage au clavier scripté. Un seul passage, avec 2 secondes de pause entre les pages ; nous respectons votre robots.txt et nous refusons toujours les cookies. Une page interdite par robots.txt est ignorée et nommée dans le rapport. Dans notre exemple de rapport, les règles ont touché 22 des 50 critères (44 %), la plupart seulement en partie.</div>
-      <div class="fact"><strong>Fait par nous.</strong> Nous convenons de la liste de pages avec vous, lisons les résultats et rédigeons la liste «&nbsp;À corriger en premier&nbsp;» et les notes sur votre boutique. Les éléments que les règles n'ont pas pu trancher sont listés pour examen, pas comptés comme des échecs.</div>
-      <div class="fact"><strong>Non testé.</strong> L'usage avec un lecteur d'écran. L'usage du clavier par une personne. Le panier rempli, la commande et le paiement : nous ne passons jamais de commande ni n'envoyons de formulaire, le panier est donc contrôlé vide. L'affichage mobile. Les contrastes au survol, au focus et dans les états d'erreur. WCAG 2.2. Le rapport les liste comme vérifications manuelles restant à faire.</div>
-      <div class="fact"><strong>Non proposé aujourd'hui.</strong> Un projet de déclaration d'accessibilité, un nouveau contrôle après vos corrections et un suivi continu. Un rapport de notre part ne prouve pas que votre boutique est conforme à WCAG ou à la loi.</div>
+    <div class="rule"></div>
+    <h2 id="scope-title" class="rv">Ce qui est contrôlé, et ce qui ne l'est pas</h2>
+    <div class="notes">
+      <div class="rv"><p><strong>Fait automatiquement.</strong> Les règles axe-core 4.14.0 pour WCAG 2.1 A et AA dans le navigateur Chromium, en affichage ordinateur (1366 × 900 pixels), plus le passage au clavier scripté. Un seul passage, avec 2 secondes de pause entre les pages ; nous respectons votre robots.txt et nous refusons toujours les cookies. Une page interdite par robots.txt est ignorée et nommée dans le rapport. Dans notre exemple de rapport, les règles ont touché 22 des 50 critères (44 %), la plupart seulement en partie.</p></div>
+      <div class="rv d1"><p><strong>Fait par nous.</strong> Nous convenons de la liste de pages avec vous, lisons les résultats et rédigeons la liste «&nbsp;À corriger en premier&nbsp;» et les notes sur votre boutique. Les éléments que les règles n'ont pas pu trancher sont listés pour examen, pas comptés comme des échecs.</p></div>
+      <div class="rv"><p><strong>Non testé.</strong> L'usage avec un lecteur d'écran. L'usage du clavier par une personne. Le panier rempli, la commande et le paiement : nous ne passons jamais de commande ni n'envoyons de formulaire, le panier est donc contrôlé vide. L'affichage mobile. Les contrastes au survol, au focus et dans les états d'erreur. WCAG 2.2. Le rapport les liste comme vérifications manuelles restant à faire.</p></div>
+      <div class="rv d1"><p><strong>Non proposé aujourd'hui.</strong> Un projet de déclaration d'accessibilité, un nouveau contrôle après vos corrections et un suivi continu. Un rapport de notre part ne prouve pas que votre boutique est conforme à WCAG ou à la loi.</p></div>
     </div>
   </section>
 
   <section id="how" aria-labelledby="how-title">
-    <h2 id="how-title">Comment ça marche</h2>
+    <div class="rule"></div>
+    <h2 id="how-title" class="rv">Comment ça marche</h2>
     <ol class="steps">
-      <li>Envoyez-nous l'adresse de votre boutique. Vous recevez un aperçu gratuit avec les problèmes les plus sérieux.</li>
-      <li>Commandez l'audit automatisé. Nous confirmons la liste de pages et envoyons par e-mail un devis avec le prix et la date de livraison.</li>
-      <li>Dans les 3 jours ouvrés suivant la réception de votre paiement, vous recevez le rapport, avec la liste «&nbsp;À corriger en premier&nbsp;» et les vérifications manuelles restantes.</li>
-      <li>Vos développeurs corrigent et organisent les vérifications manuelles.</li>
+      <li class="rv"><span aria-hidden="true">I</span><div>Envoyez-nous l'adresse de votre boutique. Vous recevez un aperçu gratuit avec les problèmes les plus sérieux.</div></li>
+      <li class="rv"><span aria-hidden="true">II</span><div>Commandez l'audit automatisé. Nous confirmons la liste de pages et envoyons par e-mail un devis avec le prix et la date de livraison.</div></li>
+      <li class="rv"><span aria-hidden="true">III</span><div>Dans les 3 jours ouvrés suivant la réception de votre paiement, vous recevez le rapport, avec la liste «&nbsp;À corriger en premier&nbsp;» et les vérifications manuelles restantes.</div></li>
+      <li class="rv"><span aria-hidden="true">IV</span><div>Vos développeurs corrigent et organisent les vérifications manuelles.</div></li>
     </ol>
   </section>
 
   <section id="about" aria-labelledby="about-title">
-    <h2 id="about-title">Qui sommes-nous</h2>
-    <p>EAA Audit est un petit service indépendant basé à Astana, au Kazakhstan. Nous n'avons aucune certification en accessibilité et pas encore d'avis clients. Nous utilisons un service d'IA pour aider à préparer les rapports ; la <a href="../privacy.html" hreflang="en">politique de confidentialité (en anglais)</a> le nomme.</p>
-    <p>Vous pouvez juger le travail sur notre <a href="exemple.html">exemple de rapport</a> : un vrai contrôle de 7 pages d'une boutique en ligne. La boutique ne l'a pas commandé et n'a pas été contactée ; son identité a été retirée. Le rapport est en anglais (PDF, 11 pages). Le PDF n'est pas balisé pour les lecteurs d'écran ; écrivez-nous pour en obtenir une version lisible.</p>
+    <div class="rule"></div>
+    <h2 id="about-title" class="rv">Qui sommes-nous</h2>
+    <div class="rv" style="max-width:760px">
+      <p>EAA Audit est un petit service indépendant basé à Astana, au Kazakhstan. Nous n'avons aucune certification en accessibilité et pas encore d'avis clients. Nous utilisons un service d'IA pour aider à préparer les rapports ; la <a href="../privacy.html" hreflang="en">politique de confidentialité (en anglais)</a> le nomme.</p>
+      <p>Vous pouvez juger le travail sur notre <a href="exemple.html">exemple de rapport</a> : un vrai contrôle de 7 pages d'une boutique en ligne. La boutique ne l'a pas commandé et n'a pas été contactée ; son identité a été retirée. Le rapport est en anglais (PDF, 11 pages). Le PDF n'est pas balisé pour les lecteurs d'écran ; écrivez-nous pour en obtenir une version lisible.</p>
+    </div>
   </section>
 
-  <section id="contact" aria-labelledby="contact-title">
+  <section class="contact" id="contact" aria-labelledby="contact-title">
     <h2 id="contact-title">Recevoir votre aperçu gratuit</h2>
     <p>Envoyez-nous l'adresse de votre boutique. Notre objectif : répondre sous un jour ouvré avec le PDF de l'aperçu.</p>
-    <p><a class="btn" href="mailto:hello@eaa-audit.net?subject=Aper%C3%A7u%20gratuit%20d%27accessibilit%C3%A9&amp;body=Bonjour%2C%20voici%20l%27adresse%20de%20ma%20boutique%20%3A%20https%3A%2F%2F">hello@eaa-audit.net</a></p>
+    <a class="btn" href="mailto:hello@eaa-audit.net?subject=Aper%C3%A7u%20gratuit%20d%27accessibilit%C3%A9&amp;body=Bonjour%2C%20voici%20l%27adresse%20de%20ma%20boutique%20%3A%20https%3A%2F%2F">hello@eaa-audit.net</a>
   </section>
 </main>
 
@@ -180,5 +283,20 @@
   <p><a href="../terms.html" hreflang="en">Conditions de service (en anglais)</a> · <a href="../privacy.html" hreflang="en">Politique de confidentialité (en anglais)</a> · <a href="../accessibility.html" hreflang="en">Déclaration d'accessibilité (en anglais)</a></p>
   <p><a href="#top">Retour en haut</a></p>
 </footer>
+</div>
+<script>
+(function(){
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var io=(!reduce&&'IntersectionObserver' in window)?new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){show(e.target);io.unobserve(e.target)}})},{threshold:.15}):null;
+  function count(el){var to=+el.getAttribute('data-to'),t0=null,d=1600;el.textContent='0';
+    function f(t){if(t0===null)t0=t;var p=Math.min((t-t0)/d,1);el.textContent=Math.round(to*(1-Math.pow(1-p,3)));if(p<1)requestAnimationFrame(f)}requestAnimationFrame(f)}
+  function show(el){el.classList.add('in');if(!reduce){var n=el.querySelectorAll('[data-to]');for(var i=0;i<n.length;i++)count(n[i]);if(el.hasAttribute('data-to'))count(el)}}
+  var els=document.querySelectorAll('.rv,.rule,#sheet');
+  // blocks already on screen at load are shown at once (no fade): first-screen text is readable immediately
+  for(var i=0;i<els.length;i++){var e=els[i];
+    if(io&&e.id!=='sheet'&&e.getBoundingClientRect().top<innerHeight){e.classList.add('now','in')}
+    else if(io)io.observe(e);else e.classList.add('in')}
+})();
+</script>
 </body>
 </html>
